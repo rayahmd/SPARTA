@@ -1,77 +1,83 @@
 'use client'
-import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Play, Camera, Maximize2 } from 'lucide-react'
+import { CCTVMap } from '@/components/dashboard/CCTVMap'
+import { Camera, Video } from 'lucide-react'
 
 const cameras = [
-  { id: 1, name: 'Persimpangan Ahmad Yani', status: 'Online', viewers: 12 },
-  { id: 2, name: 'Darmo - Polisi Istimewa', status: 'Online', viewers: 5 },
-  { id: 3, name: 'Kertajaya - Dharmawangsa', status: 'Online', viewers: 8 },
-  { id: 4, name: 'Diponegoro - Kutai', status: 'Offline', viewers: 0 },
-  { id: 5, name: 'Mayjen Sungkono', status: 'Online', viewers: 3 },
-  { id: 6, name: 'Basuki Rahmat', status: 'Online', viewers: 21 },
+  { id: '0001', name: 'Persimpangan Ahmad Yani', status: 'Online', area: 'Barat', lat: -7.2621, lng: 112.7348 },
+  { id: '0002', name: 'Darmo - Polisi Istimewa', status: 'Online', area: 'Tenggara', lat: -7.2857, lng: 112.7442 },
+  { id: '0003', name: 'Kertajaya - Dharmawangsa', status: 'Online', area: 'Timur', lat: -7.2801, lng: 112.7604 },
+  { id: '0004', name: 'Diponegoro - Kutai', status: 'Offline', area: 'Pusat', lat: -7.2664, lng: 112.7491 },
+  { id: '0005', name: 'Mayjen Sungkono', status: 'Online', area: 'Tenggara', lat: -7.2710, lng: 112.7478 },
+  { id: '0006', name: 'Basuki Rahmat', status: 'Online', area: 'Timur', lat: -7.2669, lng: 112.7412 },
 ]
 
 export default function CCTVPage() {
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-end">
+    <div className="relative flex min-h-[640px] flex-col overflow-hidden rounded-[28px] bg-white shadow-lg border border-border">
+      <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black text-[#111827]">SITS CCTV Network</h2>
-          <p className="text-muted-foreground text-sm mt-1">Live feed dari kamera pengawas lalu lintas di seluruh Surabaya.</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-500 font-semibold">Peta CCTV</p>
+          <h2 className="text-2xl font-black text-slate-900">Distribusi Kamera Surabaya</h2>
+          <p className="text-sm text-slate-500 mt-1">Logo CCTV menunjukkan titik kamera yang tersebar di kota.</p>
         </div>
-        <Badge className="bg-green-100 text-green-700">124 KAMERA AKTIF</Badge>
+        <Badge className="bg-slate-100 text-slate-800 text-xs font-bold uppercase px-3 py-2">{cameras.length} titik</Badge>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {cameras.map(cam => (
-          <Card key={cam.id} className="rounded-xl overflow-hidden shadow-sm border border-slate-200 group cursor-pointer">
-            <div className="relative aspect-video bg-slate-800 flex items-center justify-center overflow-hidden">
-              {cam.status === 'Online' ? (
-                <>
-                  <div className="absolute inset-0 opacity-40 bg-[url('https://images.unsplash.com/photo-1449824913935-59a10b8d2000?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80')] bg-cover bg-center"></div>
-                  <Play size={48} className="text-white/50 group-hover:text-white group-hover:scale-110 transition-all z-10" />
-                </>
-              ) : (
-                <div className="text-center text-slate-500">
-                  <Camera size={32} className="mx-auto mb-2 opacity-50" />
-                  <p className="text-xs font-bold tracking-widest uppercase">Signal Lost</p>
+      <div className="relative min-h-[520px] overflow-hidden">
+        <div className="h-[520px] w-full">
+          <CCTVMap
+            nodes={cameras.map((cam) => ({
+              id: cam.id,
+              name: cam.name,
+              lat: cam.lat,
+              lng: cam.lng,
+              currentLevel: cam.status === 'Online' ? 0 : 1,
+            }))}
+          />
+        </div>
+
+        <div className="absolute top-6 right-6 z-[9999] w-[360px] max-h-[calc(100%-3rem)] flex flex-col overflow-hidden rounded-[32px] border border-slate-900/10 bg-slate-950/95 shadow-2xl backdrop-blur-xl text-white">
+          <div className="px-5 py-5 border-b border-slate-800/70 flex items-center gap-3 shrink-0">
+            <div className="bg-slate-900 p-3 rounded-2xl border border-slate-700">
+              <Video size={18} className="text-white" />
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400 font-semibold">Daftar Kamera</p>
+              <p className="text-lg font-black">SPARTA CCTV Overlay</p>
+            </div>
+          </div>
+
+          {/* min-h-0 wajib ada di sini supaya flex child ini bisa shrink dan overflow-y-auto beneran aktif */}
+          <div className="px-5 py-4 space-y-4 overflow-y-auto min-h-0 flex-1 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900">
+            {cameras.map((cam) => (
+              <div
+                key={cam.id}
+                className="rounded-3xl border border-slate-800/60 bg-slate-900/95 p-4 transition hover:border-slate-600 hover:bg-slate-800"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-white truncate">{cam.name}</p>
+                    <p className="text-[11px] text-slate-500 mt-1">{cam.area}</p>
+                  </div>
+                  <span
+                    className={`text-[10px] font-black uppercase ${
+                      cam.status === 'Online' ? 'text-emerald-300' : 'text-slate-500'
+                    }`}
+                  >
+                    {cam.status}
+                  </span>
                 </div>
-              )}
-              
-              <div className="absolute top-3 left-3 flex gap-2">
-                {cam.status === 'Online' && (
-                  <Badge className="bg-red-500 hover:bg-red-600 text-white border-0 animate-pulse">
-                    <span className="w-1.5 h-1.5 bg-white rounded-full mr-1.5" />
-                    LIVE
-                  </Badge>
-                )}
+                <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 font-semibold uppercase tracking-[0.25em]">
+                  <span>ID SITS-{cam.id}</span>
+                  <span className="flex items-center gap-1">
+                    <Camera size={12} /> {cam.status === 'Online' ? 'Live' : 'Offline'}
+                  </span>
+                </div>
               </div>
-              <div className="absolute top-3 right-3 text-white/70 hover:text-white transition-colors bg-black/40 p-1.5 rounded-lg backdrop-blur-sm">
-                <Maximize2 size={16} />
-              </div>
-            </div>
-            
-            <div className="p-4 bg-white">
-              <div className="flex justify-between items-center">
-                <h3 className="font-bold text-[#111827] truncate">{cam.name}</h3>
-                <span className={`text-xs font-bold ${cam.status === 'Online' ? 'text-green-500' : 'text-slate-400'}`}>
-                  {cam.status}
-                </span>
-              </div>
-              <div className="flex justify-between items-center mt-2">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  Cam ID: SITS-{cam.id.toString().padStart(4, '0')}
-                </p>
-                {cam.status === 'Online' && (
-                  <p className="text-[10px] text-slate-500 font-medium">
-                    {cam.viewers} watching
-                  </p>
-                )}
-              </div>
-            </div>
-          </Card>
-        ))}
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )

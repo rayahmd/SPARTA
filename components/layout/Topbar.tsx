@@ -1,10 +1,10 @@
 'use client'
-import { Bell, Clock, Calendar, User, MapPin, LogOut, Settings as SettingsIcon } from 'lucide-react'
+import { Bell, Clock, Calendar, User, MapPin, LogOut, Settings as SettingsIcon, Menu } from 'lucide-react'
 import { useEffect, useState, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 
-export function Topbar() {
+export function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const [time, setTime] = useState<Date | null>(null)
   const pathname = usePathname()
   const [showNotifications, setShowNotifications] = useState(false)
@@ -36,6 +36,14 @@ export function Topbar() {
   return (
     <header className="h-[72px] bg-white border-b border-border flex items-center justify-between px-6 z-20 shrink-0">
       <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          className="p-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+          aria-label="Toggle sidebar"
+        >
+          <Menu size={20} />
+        </button>
         <div className="bg-[#facc15] text-[#111827] p-2.5 rounded-xl">
           <MapPin size={22} className="fill-[#111827]" />
         </div>

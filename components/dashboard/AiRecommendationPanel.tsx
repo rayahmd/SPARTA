@@ -13,9 +13,11 @@ interface TrafficNode {
   recommendation: string | null
 }
 
-interface AiRecommendationPanelProps {
+export interface AiRecommendationPanelProps {
   nodes: TrafficNode[]
   onApprove: (id: string, action: string) => void
+  isMinimized?: boolean
+  onMinimizeToggle?: () => void
 }
 
 // Map raw recommendation text to structured AI reasoning
@@ -214,7 +216,7 @@ function RecommendationCard({ node, onApprove }: { node: TrafficNode; onApprove:
   )
 }
 
-export function AiRecommendationPanel({ nodes, onApprove }: AiRecommendationPanelProps) {
+export function AiRecommendationPanel({ nodes, onApprove, isMinimized = false, onMinimizeToggle }: AiRecommendationPanelProps) {
   const nodesWithRecs = nodes.filter(n => n.recommendation)
     .sort((a, b) => b.predicted30 - a.predicted30) // highest urgency first
 
@@ -230,32 +232,45 @@ export function AiRecommendationPanel({ nodes, onApprove }: AiRecommendationPane
               <CardTitle className="text-base font-black text-[#111827] leading-none">AI Recommendation</CardTitle>
             </div>
           </div>
-          {nodesWithRecs.length > 0 && (
-            <span className="text-[10px] font-black bg-red-500 text-white px-2 py-0.5 rounded-full">
-              {nodesWithRecs.length}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {nodesWithRecs.length > 0 && (
+              <span className="text-[10px] font-black bg-red-500 text-white px-2 py-0.5 rounded-full">
+                {nodesWithRecs.length}
+              </span>
+            )}
+            {onMinimizeToggle && (
+              <button 
+                onClick={onMinimizeToggle} 
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition-colors"
+                title={isMinimized ? "Expand" : "Minimize"}
+              >
+                {isMinimized ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+              </button>
+            )}
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="px-4 py-4 flex-1 overflow-y-auto scrollbar-hide">
-        {nodesWithRecs.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-60 py-10">
-            <div className="w-14 h-14 rounded-full border-2 border-slate-200 flex items-center justify-center">
-              <CheckCircle2 size={28} className="text-slate-300" />
+      {!isMinimized && (
+        <CardContent className="px-4 py-4 flex-1 overflow-y-auto scrollbar-hide">
+          {nodesWithRecs.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-60 py-10">
+              <div className="w-14 h-14 rounded-full border-2 border-slate-200 flex items-center justify-center">
+                <CheckCircle2 size={28} className="text-slate-300" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-500">Semua clear</p>
+                <p className="text-xs text-slate-400 mt-1">Tidak ada kemacetan yang diprediksi memburuk saat ini.</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-bold text-slate-500">Semua clear</p>
-              <p className="text-xs text-slate-400 mt-1">Tidak ada kemacetan yang diprediksi memburuk saat ini.</p>
+          ) : (
+            <div className="space-y-4">
+              {nodesWithRecs.slice(0, 4).map(node => (
+                <RecommendationCard key={node.id} node={node} onApprove={onApprove} />
+              ))}
             </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {nodesWithRecs.slice(0, 4).map(node => (
-              <RecommendationCard key={node.id} node={node} onApprove={onApprove} />
-            ))}
-          </div>
-        )}
-      </CardContent>
+          )}
+        </CardContent>
+      )}
     </Card>
   )
 }

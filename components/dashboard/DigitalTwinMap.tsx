@@ -44,8 +44,9 @@ interface DigitalTwinMapProps {
   activeTab?: 'live' | 'prediction' | 'simulation'
   onNodeSelect: (node: TrafficNode) => void
   onApprove?: (id: string, action: string) => void
+  initialOverlays?: Partial<{ cctv: boolean; lights: boolean; vehicles: boolean; crowd: boolean; events: boolean }>
 }
 
-export function DigitalTwinMap({ nodes, vehicles = [], activeTab = 'live', onNodeSelect, onApprove }: DigitalTwinMapProps) {
-  return <MapInner nodes={nodes} vehicles={vehicles} activeTab={activeTab} onNodeSelect={onNodeSelect} onApprove={onApprove} />
+export function DigitalTwinMap({ nodes, vehicles = [], activeTab = 'live', onNodeSelect, onApprove, initialOverlays }: DigitalTwinMapProps) {
+  return <MapInner nodes={nodes} vehicles={vehicles} activeTab={activeTab} onNodeSelect={onNodeSelect} onApprove={onApprove} initialOverlays={initialOverlays} />
 }

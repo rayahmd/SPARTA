@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Ambulance, Zap, Map as MapIcon, ShieldAlert } from 'lucide-react'
+import { Ambulance, Zap, Map as MapIcon, ShieldAlert, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface EmergencyVehicle {
   id: string
@@ -23,9 +23,11 @@ interface EmergencyVehicle {
 export interface VanguardPanelProps {
   vehicles: EmergencyVehicle[]
   onTrigger: () => void
+  isMinimized?: boolean
+  onMinimizeToggle?: () => void
 }
 
-export function VanguardPanel({ vehicles, onTrigger }: VanguardPanelProps) {
+export function VanguardPanel({ vehicles, onTrigger, isMinimized = false, onMinimizeToggle }: VanguardPanelProps) {
   const [selectedRoute, setSelectedRoute] = useState<any | null>(null)
   
   const handleOverride = async (id: string) => {
@@ -38,15 +40,27 @@ export function VanguardPanel({ vehicles, onTrigger }: VanguardPanelProps) {
       <Card className="border-border h-full shadow-sm rounded-xl overflow-hidden flex flex-col bg-white">
         <CardHeader className="pb-4 pt-5 px-6 shrink-0 border-b border-border/50">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-black text-[#111827]">
-              SPARTA-Vanguard
-            </CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-lg font-black text-[#111827]">
+                SPARTA-Vanguard
+              </CardTitle>
+              {onMinimizeToggle && (
+                <button 
+                  onClick={onMinimizeToggle} 
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition-colors"
+                  title={isMinimized ? "Expand" : "Minimize"}
+                >
+                  {isMinimized ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                </button>
+              )}
+            </div>
             <button className="text-xs text-blue-600 hover:underline font-bold">
               Lihat Semua
             </button>
           </div>
         </CardHeader>
-        <CardContent className="px-6 py-6 flex-1 overflow-y-auto">
+        {!isMinimized && (
+          <CardContent className="px-6 py-6 flex-1 overflow-y-auto">
           {vehicles.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-70">
               <p className="text-sm font-medium text-slate-500">Tidak ada kendaraan darurat aktif</p>
@@ -130,6 +144,7 @@ export function VanguardPanel({ vehicles, onTrigger }: VanguardPanelProps) {
             </div>
           )}
         </CardContent>
+      )}
       </Card>
 
       <Dialog open={!!selectedRoute} onOpenChange={(open) => !open && setSelectedRoute(null)}>

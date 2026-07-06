@@ -22,6 +22,7 @@ interface MapInnerProps {
   activeTab: 'live' | 'prediction' | 'simulation'
   onNodeSelect: (node: TrafficNode) => void
   onApprove?: (id: string, action: string) => void
+  initialOverlays?: Partial<OverlayState>
 }
 
 // ─── Forecast configuration ────────────────────────────────────────────────
