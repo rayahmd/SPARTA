@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🚦 SPARTA Ephor Dashboard
 
-## Getting Started
+SPARTA Ephor Dashboard adalah platform **Digital Twin** antarmuka pusat kendali lalu lintas *(Traffic Command Center)* untuk memantau kemacetan lalu lintas kota secara real-time, mensimulasikan skenario intervensi lampu lalu lintas, dan menguji prediksi kemacetan berbasis AI (SPARTA-Athena Engine).
 
-First, run the development server:
+## 🚀 Fitur Utama
 
+- **Digital Twin Map (Command Center View):** Menggunakan basis peta CartoDB Dark Matter dengan visualisasi bersinar *(glowing)* berlatar belakang gelap, lengkap dengan garis rute aktif.
+- **Interactive Map Overlays:** Tombol kontrol cepat untuk menyalakan/mematikan visualisasi:
+  - 📷 **CCTV** (Status kamera online)
+  - 🚦 **Lampu Lalu Lintas** (Fase aktif hijau/kuning/merah)
+  - 🚑 **Vanguard Unit** (Ambulans dan jalur prioritas darurat)
+  - ⚠️ **Laporan Masyarakat** (Titik kemacetan dari warga)
+  - 📅 **Event Aktif** (Potensi kepadatan di sekitar area acara)
+- **AI Prediction Timeline:** Memprediksi kemacetan di masa mendatang (Kondisi saat ini vs +30 Menit vs +60 Menit) secara bertahap dan halus.
+- **Simulation Intervention Panel:** Menjalankan skenario intervensi SITS (seperti penambahan durasi lampu hijau +5s/+10s/+15s atau alih arus jalan) untuk melihat estimasi persentase perbaikan kemacetan, antrean jalan, dan waktu tempuh.
+- **AI Recommendation Panel:** Panel rekomendasi alur logis (Prediksi ➜ Simulasi ➜ Rekomendasi Aksi) dilengkapi dengan *Reasoning Trace* yang transparan mengenai performa model AI.
+- **Resizable Layout:** Panel AI dan panel SPARTA-Vanguard di sisi kanan dapat diatur tinggi ukurannya secara dinamis.
+
+---
+
+## 🛠️ Panduan Instalasi & Menjalankan Project
+
+Proyek ini dibangun menggunakan **Next.js 16 (App Router)**, **React 19**, **Tailwind CSS v4**, **Prisma (SQLite)**, dan direkomendasikan dijalankan menggunakan **Bun**.
+
+### 1. Prasyarat
+Pastikan Anda sudah menginstal **Bun** di komputer Anda. Jika belum, Anda bisa menginstalnya via terminal:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
+# macOS & Linux
+curl -fsSL https://bun.sh/install | bash
+
+# Windows (via PowerShell)
+powershell -c "irm bun.sh/install.ps1 | iex"
+```
+
+### 2. Install Dependensi
+Klon repositori ini, masuk ke direktori proyek, dan jalankan perintah install:
+```bash
+bun install
+```
+
+### 3. Setup Database (Prisma SQLite)
+Aplikasi ini menyimpan data simpang lalu lintas di database SQLite lokal (`dev.db`). Lakukan inisialisasi tabel database dan buat data awal *(seeding)* dengan langkah berikut:
+```bash
+# Membuat file database sqlite dan struktur tabelnya
+bunx prisma db push
+
+# Mengisi database dengan data simpang lalu lintas bawaan (seed)
+bunx prisma db seed
+```
+
+### 4. Jalankan Server Development
+Setelah database siap, nyalakan server lokal:
+```bash
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka browser Anda di alamat [http://localhost:3000](http://localhost:3000) untuk mengakses dasbor.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 📂 Struktur Folder Utama
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `/app` — Routing halaman (Next.js App Router). Halaman dashboard utama ada di `/app/(dashboard)/ephor/page.tsx`.
+- `/components` — Komponen UI reusable. Peta Digital Twin berada di `/components/dashboard/DigitalTwinMapInner.tsx`.
+- `/lib` — Logika model lalu lintas, simulasi skenario, dan integrasi database Prisma.
+- `/prisma` — Skema database dan skrip *seeder* (`seed.ts`).
