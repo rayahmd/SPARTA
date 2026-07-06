@@ -1,0 +1,58 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model TrafficNode {
+  id             String   @id @default(cuid())
+  name           String
+  lat            Float
+  lng            Float
+  currentLevel   Float    @default(0)
+  predicted30    Float    @default(0)
+  confidence     Float    @default(1)
+  recommendation String?
+  updatedAt      DateTime @updatedAt
+}
+
+model Incident {
+  id          String    @id @default(cuid())
+  type        String
+  lat         Float
+  lng         Float
+  description String
+  source      String
+  status      String    @default("active")
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
+}
+
+model EmergencyVehicle {
+  id          String   @id @default(cuid())
+  label       String
+  originLat   Float
+  originLng   Float
+  destLat     Float
+  destLng     Float
+  progress    Float    @default(0)
+  etaMinutes  Float    @default(0)
+  distanceKm  Float    @default(0)
+  greenWaveOn Boolean  @default(false)
+  status      String   @default("enroute")
+  createdAt   DateTime @default(now())
+}
+
+model SimulationLog {
+  id      String   @id @default(cuid())
+  ranAt   DateTime @default(now())
+  summary String
+}
