@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, CircleMarker, Popup, Polyline, Marker, useMap 
 import { Camera, AlertTriangle, CalendarDays, Ambulance as AmbulanceIcon, TrendingUp, TrendingDown, MoveRight, MapPin, Video } from 'lucide-react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { OSRMRoutingService } from '@/lib/services/osrm-routing'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface TrafficNode {
@@ -41,8 +42,28 @@ const SCENARIOS = [
   { id: 'diversion', label: 'Alih Arus Sementara', congestion: -32, travel: -55, queue: -65 },
 ]
 
-// ─── Road segment connections (pairs of indices) ───────────────────────────
-const ROAD_EDGES = [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 0], [0, 4], [1, 5], [2, 6], [3, 7], [4, 8], [5, 9]]
+// ─── Initialize OSRM routing service ────────────────────────────────────────
+const osrm = new OSRMRoutingService()
+
+// ─── Road segment type ──────────────────────────────────────────────────────
+interface RoadSegment {
+  id: string
+  fromNode: TrafficNode
+  toNode: TrafficNode
+  geometry: [number, number][]
+  avgLevel: number
+}
+
+// ─── Vehicle route type ─────────────────────────────────────────────────────
+interface VehicleRoute {
+  vehicleId: string
+  geometry: [number, number][]
+  distance: number
+  duration: number
+}
+
+// ─── Node pairs for road segments ──────────────────────────────────────────
+const ROAD_CONNECTIONS = [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 0], [0, 4], [1, 5], [2, 6], [3, 7], [4, 8], [5, 9]]
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 function getColor(level: number): string {
@@ -323,14 +344,143 @@ export default function DigitalTwinMapInner({ nodes, vehicles, activeTab, onNode
   const [forecastTime, setForecastTime] = useState(0)
   const [displayLevels, setDisplayLevels] = useState<Record<string, number>>({})
   const [selectedNode, setSelectedNode] = useState<TrafficNode | null>(null)
+  const [roadSegments, setRoadSegments] = useState<RoadSegment[]>([])
+  const [vehicleRoutes, setVehicleRoutes] = useState<VehicleRoute[]>([])
   const animRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const prevTabRef = useRef(activeTab)
+  const routeCacheRef = useRef<Map<string, VehicleRoute>>(new Map())
 
   // Initialise display levels from nodes
+  const initRef = useRef(false)
   useEffect(() => {
-    const init: Record<string, number> = {}
-    nodes.forEach(n => { init[n.id] = n.currentLevel })
-    setDisplayLevels(init)
-  }, [nodes.map(n => n.id).join(',')])  // Only re-init when node set changes
+    if (!initRef.current && nodes.length > 0) {
+      const init: Record<string, number> = {}
+      nodes.forEach(n => { init[n.id] = n.currentLevel })
+      setDisplayLevels(init)
+      initRef.current = true
+    }
+  }, [nodes])
+
+  // Load OSRM road segments when nodes change
+  useEffect(() => {
+    if (nodes.length > 1) {
+      loadRoadSegments(nodes)
+    }
+  }, [nodes])
+
+  // Load OSRM vehicle routes when vehicles change
+  useEffect(() => {
+    if (vehicles.length === 0) {
+      setVehicleRoutes([])
+      return
+    }
+    
+    const loadRoutes = async () => {
+      const routes: VehicleRoute[] = []
+      for (const v of vehicles) {
+        const cacheKey = `${v.originLat},${v.originLng};${v.destLat},${v.destLng}`
+        const cached = routeCacheRef.current.get(cacheKey)
+        if (cached) {
+          routes.push(cached)
+          continue
+        }
+        
+        const route = await osrm.getRoute(
+          [v.originLat, v.originLng],
+          [v.destLat, v.destLng],
+          'driving',
+          { alternatives: 0, steps: false, geometries: 'geojson' }
+        )
+        
+        if (route) {
+          const vehicleRoute: VehicleRoute = {
+            vehicleId: v.id,
+            geometry: route.geometry,
+            distance: route.distance / 1000,
+            duration: route.duration / 60,
+          }
+          routeCacheRef.current.set(cacheKey, vehicleRoute)
+          routes.push(vehicleRoute)
+        } else {
+          routes.push({
+            vehicleId: v.id,
+            geometry: [[v.originLat, v.originLng], [v.destLat, v.destLng]],
+            distance: Math.sqrt(Math.pow(v.destLat - v.originLat, 2) + Math.pow(v.destLng - v.originLng, 2)) * 111,
+            duration: 0,
+          })
+        }
+      }
+      setVehicleRoutes(routes)
+    }
+    
+    loadRoutes()
+  }, [vehicles])
+
+  const loadRoadSegments = async function (nodes: TrafficNode[]) {
+    const segments: RoadSegment[] = []
+    const cache = new Map<string, RoadSegment>()
+
+    const processSegment = async (i: number, j: number) => {
+      if (!nodes[i] || !nodes[j]) return null
+
+      const fromId = `${nodes[i].lat},${nodes[i].lng}`
+      const toId = `${nodes[j].lat},${nodes[j].lng}`
+      const cacheKey = `${fromId}|${toId}`
+
+      if (cache.has(cacheKey)) {
+        return cache.get(cacheKey)!
+      }
+
+      try {
+        const route = await osrm.getRoute(
+          [nodes[i].lat, nodes[i].lng],
+          [nodes[j].lat, nodes[j].lng]
+        )
+
+        if (route) {
+          const segment: RoadSegment = {
+            id: `route-${i}-${j}`,
+            fromNode: nodes[i],
+            toNode: nodes[j],
+            geometry: route.geometry,
+            avgLevel: (getNodeDisplayLevel(nodes[i]) + getNodeDisplayLevel(nodes[j])) / 2
+          }
+
+          cache.set(cacheKey, segment)
+          segments.push(segment)
+          return segment
+        }
+      } catch (error) {
+        console.error('Failed to load OSRM route:', error)
+      }
+
+      return null
+    }
+
+    const processedRoutes = await Promise.all(
+      ROAD_CONNECTIONS.map(async ([i, j]) => {
+        const existing = cache.get(
+          `${nodes[i].lat},${nodes[i].lng}|${nodes[j].lat},${nodes[j].lng}`
+        )
+        if (existing) return existing
+        return await processSegment(i, j)
+      })
+    )
+
+    setRoadSegments(processedRoutes.filter((r): r is RoadSegment => r !== null))
+  }
+
+  const getCongestionColor = (level: number): string => {
+    if (level < 40) return '#22c55e'
+    if (level < 65) return '#eab308'
+    return '#ef4444'
+  }
+
+  const getPredictedLevel = (level: number, time: number, isPrediction: boolean = false): number => {
+    if (!isPrediction) return level
+    const mult = (FORECAST_CONF[time] || FORECAST_CONF[0]).mult
+    return Math.min(100, level * mult)
+  }
 
   // Animated transition when forecast time changes
   useEffect(() => {
@@ -365,7 +515,13 @@ export default function DigitalTwinMapInner({ nodes, vehicles, activeTab, onNode
   }, [activeTab, displayLevels])
 
   // When tab changes, reset selection
-  useEffect(() => { setSelectedNode(null); setForecastTime(0) }, [activeTab])
+  useEffect(() => { 
+    if (activeTab !== prevTabRef.current) {
+      setSelectedNode(null)
+      setForecastTime(0)
+      prevTabRef.current = activeTab
+    }
+  }, [activeTab])
 
   const handleNodeClick = (node: TrafficNode) => {
     if (activeTab === 'live') {
@@ -446,16 +602,63 @@ export default function DigitalTwinMapInner({ nodes, vehicles, activeTab, onNode
           url={tileUrl}
         />
 
-        {/* Road segments (polylines between nodes) */}
-        {nodes.length > 1 && ROAD_EDGES.map(([i, j]) => {
-          if (!nodes[i] || !nodes[j]) return null
-          const avgLevel = (getNodeDisplayLevel(nodes[i]) + getNodeDisplayLevel(nodes[j])) / 2
-          const color = getColor(avgLevel)
+        {/* Road segments from OSRM (actual road geometries) */}
+        {roadSegments.length > 0 && roadSegments.map((segment) => {
+          const predictedLevel = activeTab === 'prediction' 
+            ? getPredictedLevel(segment.avgLevel, forecastTime, true)
+            : segment.avgLevel
+          const color = getCongestionColor(predictedLevel)
+          
           return (
             <Polyline
-              key={`road-${i}-${j}`}
+              key={segment.id}
+              positions={segment.geometry}
+              pathOptions={{
+                color,
+                weight: activeTab === 'simulation' ? 5 : 4,
+                opacity: 0.6,
+                lineJoin: 'round',
+                lineCap: 'round'
+              }}
+              eventHandlers={{
+                mouseover: (e) => {
+                  const layer = e.target
+                  layer.setStyle({ opacity: 0.9, weight: 6 })
+                },
+                mouseout: (e) => {
+                  const layer = e.target
+                  layer.setStyle({ opacity: 0.6, weight: activeTab === 'simulation' ? 5 : 4 })
+                },
+                click: () => {
+                  console.log('Road segment:', {
+                    from: segment.fromNode.name,
+                    to: segment.toNode.name,
+                    congestion: Math.round(predictedLevel)
+                  })
+                }
+              }}
+            />
+          )
+        })}
+
+        {/* Fallback straight lines for missing OSRM routes */}
+        {roadSegments.length === 0 && nodes.length > 1 && ROAD_CONNECTIONS.map(([i, j]) => {
+          if (!nodes[i] || !nodes[j]) return null
+          const avgLevel = (getNodeDisplayLevel(nodes[i]) + getNodeDisplayLevel(nodes[j])) / 2
+          const predictedLevel = activeTab === 'prediction'
+            ? getPredictedLevel(avgLevel, forecastTime, true)
+            : avgLevel
+          const color = getCongestionColor(predictedLevel)
+          return (
+            <Polyline
+              key={`fallback-${i}-${j}`}
               positions={[[nodes[i].lat, nodes[i].lng], [nodes[j].lat, nodes[j].lng]]}
-              pathOptions={{ color, weight: activeTab === 'simulation' ? 5 : 4, opacity: 0.6 }}
+              pathOptions={{ 
+                color, 
+                weight: activeTab === 'simulation' ? 5 : 4, 
+                opacity: 0.6,
+                dashArray: '5 3'
+              }}
             />
           )
         })}
@@ -587,19 +790,29 @@ export default function DigitalTwinMapInner({ nodes, vehicles, activeTab, onNode
           </Marker>
         ))}
 
-        {/* Vanguard vehicles */}
+        {/* Vanguard vehicles with OSRM road routes */}
         {(activeTab === 'live' ? overlays.vehicles : true) && vehicles.map((v) => {
           const origin: [number, number] = [v.originLat, v.originLng]
           const dest: [number, number] = [v.destLat, v.destLng]
           const pos = interpolatePos(v.originLat, v.originLng, v.destLat, v.destLng, v.progress)
+          const existingRoute = vehicleRoutes.find(r => r.vehicleId === v.id)
+          const geo = existingRoute?.geometry ?? [origin, dest]
+          const fullLen = geo.length
+          const doneIdx = Math.max(1, Math.floor(fullLen * v.progress))
+          const doneGeo = geo.slice(0, doneIdx)
+          const remGeo = geo.slice(doneIdx - 1)
           return (
             <>
-              <Polyline key={`bg-${v.id}`} positions={[origin, dest]}
+              <Polyline key={`bg-${v.id}`} positions={geo}
                 pathOptions={{ color: '#475569', weight: 2, opacity: 0.35, dashArray: '6 5' }} />
-              <Polyline key={`done-${v.id}`} positions={[origin, pos]}
-                pathOptions={{ color: v.greenWaveOn ? '#22c55e' : '#3b82f6', weight: 5, opacity: 0.85, lineCap: 'round' }} />
-              <Polyline key={`rem-${v.id}`} positions={[pos, dest]}
-                pathOptions={{ color: '#ef4444', weight: 4, opacity: 0.55, dashArray: '5 4', lineCap: 'round' }} />
+              {doneGeo.length >= 2 && (
+                <Polyline key={`done-${v.id}`} positions={doneGeo}
+                  pathOptions={{ color: v.greenWaveOn ? '#22c55e' : '#3b82f6', weight: 5, opacity: 0.85, lineCap: 'round' }} />
+              )}
+              {remGeo.length >= 2 && (
+                <Polyline key={`rem-${v.id}`} positions={remGeo}
+                  pathOptions={{ color: '#ef4444', weight: 4, opacity: 0.55, dashArray: '5 4', lineCap: 'round' }} />
+              )}
               <CircleMarker key={`orig-${v.id}`} center={origin} radius={5}
                 pathOptions={{ color: '#1e293b', fillColor: '#3b82f6', fillOpacity: 1, weight: 2 }} />
               <CircleMarker key={`dstc-${v.id}`} center={dest} radius={7}
