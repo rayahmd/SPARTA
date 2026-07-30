@@ -34,9 +34,6 @@ function buildAiReasoning(node: TrafficNode) {
 
   // Derive urgency
   const urgency = node.predicted30 >= 85 ? 'KRITIS' : node.predicted30 >= 70 ? 'TINGGI' : 'SEDANG'
-  const urgencyColor = urgency === 'KRITIS' ? 'text-red-600 bg-red-50 border-red-200' :
-    urgency === 'TINGGI' ? 'text-orange-600 bg-orange-50 border-orange-200' :
-    'text-yellow-600 bg-yellow-50 border-yellow-200'
 
   // Simulation scenario chosen by AI
   const simScenario = node.predicted30 >= 80 ? '+15 dtk Fase Hijau' :
@@ -47,7 +44,7 @@ function buildAiReasoning(node: TrafficNode) {
 
   return {
     trend, trendPct, forecastTime, confidence,
-    improvement, urgency, urgencyColor,
+    improvement, urgency,
     simScenario, simResult, simReduction,
   }
 }
@@ -56,6 +53,7 @@ function RecommendationCard({ node, onApprove }: { node: TrafficNode; onApprove:
   const [expanded, setExpanded] = useState(false)
   const [approved, setApproved] = useState(false)
   const ai = buildAiReasoning(node)
+  const urgencyColor = ai.urgency === 'KRITIS' ? 'bg-[#dc2626] text-white' : ai.urgency === 'TINGGI' ? 'bg-[#f97316] text-white' : 'bg-[#eab308] text-[#111827]'
 
   const handleApprove = () => {
     setApproved(true)
@@ -87,9 +85,9 @@ function RecommendationCard({ node, onApprove }: { node: TrafficNode; onApprove:
               <p className="text-sm font-black text-[#111827] leading-tight">{node.name}</p>
             </div>
           </div>
-          <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full border ${ai.urgencyColor} shrink-0`}>
-            {ai.urgency}
-          </span>
+            <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full border shrink-0">
+              {ai.urgency}
+            </span>
         </div>
       </div>
 

@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+/* Light mode only - no dark mode for control room environment */
 
 @theme inline {
   --color-background: var(--background);
@@ -52,41 +52,58 @@
 }
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  /* SPARTA Brand Colors */
+  --color-sparta-maroon: 143 22 16; /* #8F1610 */
+  --color-sparta-gold: 228 142 7; /* #E48E07 */
+  
+  /* Traffic Status Colors */
+  --color-traffic-red: 220 38 38; /* #DC2626 - severe congestion ≥80%, critical incidents */
+  --color-traffic-orange: 249 115 22; /* #F97316 - heavy congestion 60-79%, warning */
+  --color-traffic-yellow: 234 179 8; /* #EAB308 - moderate congestion 40-59%, caution */
+  --color-traffic-green: 22 163 74; /* #16A34A - light congestion 0-39%, normal flow */
+  --color-traffic-blue: 37 99 235; /* #2563EB - info, CCTV markers, reference lines */
+  
+  /* Interface Colors */
+  --background: #ffffff; /* White background for control room readability */
+  --foreground: #111827; /* Near black for primary text */
   --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card-foreground: #111827;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #eab308;
+  --popover-foreground: #111827;
+  --primary: #8F1610; /* SPARTA maroon for primary actions */
   --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #f1f5f9;
-  --accent-foreground: #0f172a;
-  --destructive: #ef4444;
+  --secondary: #f3f4f6; /* Gray 100 for subtle backgrounds */
+  --secondary-foreground: #111827;
+  --muted: #f9fafb; /* Gray 50 */
+  --muted-foreground: #6B7280; /* Gray 500 for secondary text */
+  --accent: #f3f4f6; /* Gray 100 */
+  --accent-foreground: #111827;
+  --destructive: #dc2626; /* Traffic red */
   --destructive-foreground: #ffffff;
-  --success: #22c55e;
+  --success: #16A34A; /* Traffic green */
   --success-foreground: #ffffff;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #eab308;
-  --chart-1: #eab308;
-  --chart-2: #ef4444;
-  --chart-3: #22c55e;
-  --chart-4: #3b82f6;
-  --chart-5: #a855f7;
-  --radius: 0.625rem;
-  --sidebar: #0f172a;
-  --sidebar-foreground: #f8fafc;
-  --sidebar-primary: #eab308;
+  --border: #e5e7eb; /* Subtle borders - Gray 200 */
+  --input: #ffffff; /* White inputs */
+  --ring: #8F1610; /* SPARTA maroon for focus rings */
+  
+  /* Chart colors using traffic palette */
+  --chart-1: #8F1610; /* SPARTA maroon */
+  --chart-2: #dc2626; /* Traffic red */
+  --chart-3: #16A34A; /* Traffic green */
+  --chart-4: #2563EB; /* Traffic blue */
+  --chart-5: #6B7280; /* Gray 500 */
+  
+  --radius: 0.75rem; /* 12px consistent rounded corners */
+  
+  /* Sidebar */
+  --sidebar: #f9fafb; /* Light sidebar for 24/7 readability */
+  --sidebar-foreground: #111827;
+  --sidebar-primary: #8F1610;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1e293b;
-  --sidebar-accent-foreground: #f8fafc;
-  --sidebar-border: #1e293b;
-  --sidebar-ring: #eab308;
+  --sidebar-accent: #f3f4f6;
+  --sidebar-accent-foreground: #111827;
+  --sidebar-border: #e5e7eb;
+  --sidebar-ring: #8F1610;
 }
 
 .dark {

@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { renderToString } from 'react-dom/server'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import { Video } from 'lucide-react'
@@ -14,15 +14,25 @@ interface CameraNode {
   currentLevel: number
 }
 
-const CCTV_ICON = L.divIcon({
-  className: '',
-  html: `<div style="background:#1e293b;border:2px solid white;border-radius:10px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 18px rgba(0,0,0,0.24);">${renderToString(
-    <Video size={18} color="white" />
-  )}</div>`,
-  iconSize: [36, 36],
-  iconAnchor: [18, 36],
-  popupAnchor: [0, -38],
-})
+interface CameraNode {
+  id: string
+  name: string
+  lat: number
+  lng: number
+  currentLevel: number
+}
+
+function createCctvIcon(): L.DivIcon {
+  return L.divIcon({
+    className: '',
+    html: `<div style="background:#1e293b;border:2px solid white;border-radius:10px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 18px rgba(0,0,0,0.24);">${renderToString(
+      <Video size={18} color="white" />
+    )}</div>`,
+    iconSize: [36, 36],
+    iconAnchor: [18, 36],
+    popupAnchor: [0, -38],
+  })
+}
 
 // Komponen kecil yang "duduk" di dalam MapContainer, tugasnya cuma
 // mastiin Leaflet re-ukur dirinya sendiri begitu container punya ukuran final,
@@ -53,9 +63,16 @@ function MapResizeHandler() {
 }
 
 export function CCTVMap({ nodes }: { nodes: CameraNode[] }) {
+  const [cctvIcon, setCctvIcon] = useState<L.DivIcon | null>(null)
   const center: [number, number] = nodes.length > 0
     ? [nodes[0].lat, nodes[0].lng]
     : [-7.2458, 112.7378]
+
+  useEffect(() => {
+    setCctvIcon(createCctvIcon())
+  }, [])
+
+  if (!cctvIcon) return null
 
   return (
     <MapContainer
@@ -74,7 +91,7 @@ export function CCTVMap({ nodes }: { nodes: CameraNode[] }) {
         <Marker
           key={node.id}
           position={[node.lat, node.lng]}
-          icon={CCTV_ICON}
+          icon={cctvIcon}
         >
           <Popup>
             <div className="space-y-1 text-sm">
