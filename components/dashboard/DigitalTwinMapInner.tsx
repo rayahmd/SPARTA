@@ -720,8 +720,8 @@ export default function DigitalTwinMapInner({ nodes, vehicles, activeTab, onNode
       container: containerRef.current,
       center: [112.74, -7.28],
       zoom: 12.5,
-      pitch: 0,
-      bearing: 0,
+      pitch: 60,
+      bearing: -20,
       maxPitch: 85,
       minZoom: 3,
       style: buildBaseStyle(false),
@@ -760,9 +760,39 @@ export default function DigitalTwinMapInner({ nodes, vehicles, activeTab, onNode
       if (!map.getSource('segments')) map.addSource('segments', { type: 'geojson', data: EMPTY_FC })
       if (!map.getSource('nodes')) map.addSource('nodes', { type: 'geojson', data: EMPTY_FC })
       if (!map.getSource('vehicle-routes')) map.addSource('vehicle-routes', { type: 'geojson', data: EMPTY_FC })
+      if (!map.getSource('openmaptiles')) {
+        map.addSource('openmaptiles', {
+          type: 'vector',
+          url: 'https://tiles.openfreemap.org/planet'
+        })
+      }
 
       console.log('[DigitalTwinMap] BASE SOURCE', map.getSource('base'))
       console.log('[DigitalTwinMap] BASE LAYER', map.getLayer('base-layer'))
+
+      if (!map.getLayer('3d-buildings')) {
+        map.addLayer({
+          id: '3d-buildings',
+          type: 'fill-extrusion',
+          source: 'openmaptiles',
+          'source-layer': 'building',
+          minzoom: 14,
+          paint: {
+            'fill-extrusion-color': [
+              'interpolate',
+              ['linear'],
+              ['coalesce', ['get', 'render_height'], 8],
+              0, '#e5e7eb',
+              20, '#d1d5db',
+              50, '#9ca3af',
+              100, '#4b5563'
+            ],
+            'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8],
+            'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+            'fill-extrusion-opacity': 0.85
+          }
+        })
+      }
 
       if (!map.getLayer('segments-layer')) {
         map.addLayer({
