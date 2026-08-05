@@ -1,7 +1,19 @@
 'use client'
+import dynamic from 'next/dynamic'
 import { Badge } from '@/components/ui/badge'
-import { CCTVMap } from '@/components/dashboard/CCTVMap'
 import { Camera, Video } from 'lucide-react'
+
+const CCTVMap = dynamic(() => import('@/components/dashboard/CCTVMap').then((m) => m.CCTVMap), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-[520px] flex items-center justify-center bg-slate-50">
+      <div className="flex flex-col items-center gap-2 text-slate-400">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <span className="text-sm">Memuat peta...</span>
+      </div>
+    </div>
+  ),
+})
 
 const cameras = [
   { id: '0001', name: 'Persimpangan Ahmad Yani', status: 'Online', area: 'Barat', lat: -7.2621, lng: 112.7348 },
