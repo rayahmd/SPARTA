@@ -30,7 +30,7 @@ export default function CCTVPage() {
       <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-slate-500 font-semibold">Peta CCTV</p>
-          <h2 className="text-2xl font-black text-slate-900">Distribusi Kamera Surabaya</h2>
+          <h2 className="text-2xl font-bold text-slate-900">Distribusi Kamera Surabaya</h2>
           <p className="text-sm text-slate-500 mt-1">Logo CCTV menunjukkan titik kamera yang tersebar di kota.</p>
         </div>
         <Badge className="bg-slate-100 text-slate-800 text-xs font-bold uppercase px-3 py-2">{cameras.length} titik</Badge>
@@ -56,7 +56,7 @@ export default function CCTVPage() {
             </div>
             <div>
               <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400 font-semibold">Daftar Kamera</p>
-              <p className="text-lg font-black">SPARTA CCTV Overlay</p>
+              <p className="text-lg font-bold">SPARTA CCTV Overlay</p>
             </div>
           </div>
 
@@ -73,7 +73,7 @@ export default function CCTVPage() {
                     <p className="text-[11px] text-slate-500 mt-1">{cam.area}</p>
                   </div>
                   <span
-                    className={`text-[10px] font-black uppercase ${
+                    className={`text-[10px] font-bold uppercase ${
                       cam.status === 'Online' ? 'text-emerald-300' : 'text-slate-500'
                     }`}
                   >

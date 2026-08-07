@@ -263,7 +263,7 @@ function LiveOverlayControls({ overlays, setOverlays }: { overlays: OverlayState
   return (
     <div className="absolute top-3 left-3 z-[900] flex flex-col gap-1.5">
       <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-slate-200 p-2">
-        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 mb-1.5">OVERLAY</p>
+        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1 mb-1.5">OVERLAY</p>
         {toggles.map(({ key, label, icon }) => (
           <button
             key={key}
@@ -277,7 +277,7 @@ function LiveOverlayControls({ overlays, setOverlays }: { overlays: OverlayState
       </div>
       {/* Legend */}
       <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-slate-200 p-2">
-        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 mb-1.5">KONDISI</p>
+        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1 mb-1.5">KONDISI</p>
         {[['#22c55e', 'Lancar < 40%'], ['#eab308', 'Sedang 40–65%'], ['#ef4444', 'Macet > 65%']].map(([c, l]) => (
           <div key={c} className="flex items-center gap-2 px-1 py-0.5">
             <div className="w-3 h-3 rounded-full shrink-0" style={{ background: c }} />
@@ -297,8 +297,8 @@ function ForecastTimeline({ forecastTime, setForecastTime, confidence }: {
     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[900]">
       <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-200 px-4 py-3 flex flex-col items-center gap-2 min-w-[320px]">
         <div className="flex items-center justify-between w-full">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">FORECAST TIMELINE</span>
-          <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">FORECAST TIMELINE</span>
+          <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
             Confidence: {confidence}%
           </span>
         </div>
@@ -338,8 +338,8 @@ function NodeDetailPanel({ node, forecastTime, targetLevel, onClose, tab }: {
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
         <div className="bg-[#111827] px-4 py-3 flex justify-between items-center">
           <div>
-            <p className="text-white font-black text-sm leading-tight">{node.name}</p>
-            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-0.5">
+            <p className="text-white font-bold text-sm leading-tight">{node.name}</p>
+            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mt-0.5">
               {tab === 'prediction' ? `Prediksi ${conf.label}` : 'Analisis Node'}
             </p>
           </div>
@@ -348,18 +348,18 @@ function NodeDetailPanel({ node, forecastTime, targetLevel, onClose, tab }: {
         <div className="p-4 space-y-3">
           <div className="flex items-center gap-3">
             <div className="flex-1 text-center p-3 rounded-xl bg-slate-50 border border-slate-100">
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Sekarang</p>
-              <p className="text-2xl font-black mt-0.5" style={{ color: getColor(node.currentLevel) }}>{node.currentLevel}%</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Sekarang</p>
+              <p className="text-2xl font-bold mt-0.5" style={{ color: getColor(node.currentLevel) }}>{node.currentLevel}%</p>
             </div>
             <div className="text-slate-400 flex items-center justify-center"><MoveRight size={24} /></div>
             <div className="flex-1 text-center p-3 rounded-xl bg-slate-50 border border-slate-100">
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                 {tab === 'prediction' ? conf.label : 'Simulasi'}
               </p>
-              <p className="text-2xl font-black mt-0.5" style={{ color: getColor(targetLevel) }}>{Math.round(targetLevel)}%</p>
+              <p className="text-2xl font-bold mt-0.5" style={{ color: getColor(targetLevel) }}>{Math.round(targetLevel)}%</p>
             </div>
           </div>
-          <div className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-black ${trend > 0 ? 'bg-red-50 text-red-600' : trend < 0 ? 'bg-green-50 text-green-600' : 'bg-slate-50 text-slate-500'
+          <div className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold ${trend > 0 ? 'bg-red-50 text-red-600' : trend < 0 ? 'bg-green-50 text-green-600' : 'bg-slate-50 text-slate-500'
             }`}>
             <span>{trend > 0 ? <TrendingUp size={16} /> : trend < 0 ? <TrendingDown size={16} /> : <MoveRight size={16} />}</span>
             Trend: {trend > 0 ? '+' : ''}{trend.toFixed(0)}%
@@ -367,12 +367,12 @@ function NodeDetailPanel({ node, forecastTime, targetLevel, onClose, tab }: {
           {tab === 'prediction' && (
             <div className="flex justify-between text-xs text-slate-500 bg-slate-50 rounded-lg p-2.5">
               <span>Confidence AI</span>
-              <span className="font-black text-blue-600">{conf.confidence}%</span>
+              <span className="font-bold text-blue-600">{conf.confidence}%</span>
             </div>
           )}
           {node.recommendation && (
             <div className="p-2.5 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-[10px] font-black text-yellow-700 uppercase tracking-widest">REKOMENDASI AI</p>
+              <p className="text-[10px] font-bold text-yellow-700 uppercase tracking-wider">REKOMENDASI AI</p>
               <p className="text-xs text-yellow-800 mt-1 font-medium">{node.recommendation}</p>
             </div>
           )}
@@ -411,14 +411,14 @@ function SimulationPanel({ node, onClose, onApprove }: {
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
         <div className="bg-purple-900 px-4 py-3 flex justify-between items-center">
           <div>
-            <p className="text-white font-black text-sm leading-tight">{node.name}</p>
-            <p className="text-purple-300 text-[10px] font-bold uppercase tracking-widest mt-0.5">Panel Simulasi Intervensi</p>
+            <p className="text-white font-bold text-sm leading-tight">{node.name}</p>
+            <p className="text-purple-300 text-[10px] font-bold uppercase tracking-wider mt-0.5">Panel Simulasi Intervensi</p>
           </div>
           <button onClick={onClose} className="text-purple-300 hover:text-white transition-colors text-lg">✕</button>
         </div>
         <div className="p-4 space-y-3">
           <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Skenario Intervensi</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Skenario Intervensi</p>
             <div className="space-y-1.5">
               {SCENARIOS.map(s => (
                 <button
@@ -438,7 +438,7 @@ function SimulationPanel({ node, onClose, onApprove }: {
           <button
             onClick={runSim}
             disabled={running}
-            className="w-full py-2.5 bg-[#111827] hover:bg-slate-800 text-white font-black rounded-xl text-sm transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+            className="w-full py-2.5 bg-[#111827] hover:bg-slate-800 text-white font-bold rounded-xl text-sm transition-all disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {running ? (
               <>
@@ -450,7 +450,7 @@ function SimulationPanel({ node, onClose, onApprove }: {
 
           {result && newLevel !== null && (
             <div className="space-y-2 pt-1 border-t border-slate-100">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hasil Simulasi</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Hasil Simulasi</p>
               {[
                 { label: 'Kemacetan', before: `${node.currentLevel}%`, after: `${newLevel}%`, change: result.congestion },
                 { label: 'Waktu Tempuh', before: `${baseTravelMin} mnt`, after: `${newTravelMin} mnt`, change: result.travel },
@@ -460,9 +460,9 @@ function SimulationPanel({ node, onClose, onApprove }: {
                   <span className="text-xs text-slate-500 w-24 shrink-0 font-medium">{row.label}</span>
                   <span className="text-xs font-bold text-slate-700 text-right">{row.before}</span>
                   <span className="text-slate-400 text-xs">→</span>
-                  <span className={`text-xs font-black ${row.change < 0 ? 'text-green-600' : 'text-slate-700'}`}>{row.after}</span>
+                  <span className={`text-xs font-bold ${row.change < 0 ? 'text-green-600' : 'text-slate-700'}`}>{row.after}</span>
                   {row.change !== 0 && (
-                    <span className={`text-[10px] font-black ml-auto px-1.5 py-0.5 rounded ${row.change < 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    <span className={`text-[10px] font-bold ml-auto px-1.5 py-0.5 rounded ${row.change < 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                       }`}>
                       {row.change > 0 ? '+' : ''}{row.change}%
                     </span>
@@ -472,7 +472,7 @@ function SimulationPanel({ node, onClose, onApprove }: {
               {scenario !== 'existing' && onApprove && (
                 <button
                   onClick={() => { onApprove(node.id, scenario); onClose() }}
-                  className="w-full py-2 bg-green-600 hover:bg-green-700 text-white font-black rounded-xl text-xs transition-all mt-1"
+                  className="w-full py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-xs transition-all mt-1"
                 >
                   ✓ Terapkan Intervensi Ini
                 </button>
@@ -1176,7 +1176,7 @@ export default function DigitalTwinMapInner({ nodes, vehicles, activeTab, onNode
       {/* 3D / 2D toggle */}
       <button
         onClick={toggle3D}
-        className="absolute bottom-4 right-4 z-[900] px-3 py-2 rounded-xl bg-white/95 backdrop-blur-sm border border-slate-200 shadow-lg text-xs font-black text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+        className="absolute bottom-4 right-4 z-[900] px-3 py-2 rounded-xl bg-white/95 backdrop-blur-sm border border-slate-200 shadow-lg text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
         title={is3D ? 'Kembali ke tampilan 2D' : 'Aktifkan tampilan 3D'}
       >
         <span className={`w-2 h-2 rounded-full ${is3D ? 'bg-blue-600' : 'bg-slate-300'}`} />

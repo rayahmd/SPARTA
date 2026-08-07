@@ -18,7 +18,7 @@ export default function VanguardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-black text-[#111827]">SPARTA Vanguard</h2>
+        <h2 className="text-2xl font-bold text-[#111827]">SPARTA Vanguard</h2>
         <p className="text-muted-foreground text-sm mt-1">Sistem prioritas kendaraan darurat (Ambulans, Pemadam Kebakaran, Patwal).</p>
       </div>
 
@@ -51,8 +51,8 @@ export default function VanguardPage() {
                   <Zap size={24} className="text-green-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-black text-[#111827]">{vehicles.filter((v: any) => v.greenWaveOn).length}</p>
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Green Wave Aktif</p>
+                  <p className="text-2xl font-bold text-[#111827]">{vehicles.filter((v: any) => v.greenWaveOn).length}</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Green Wave Aktif</p>
                 </div>
               </CardContent>
             </Card>
@@ -62,8 +62,8 @@ export default function VanguardPage() {
                   <Ambulance size={24} className="text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-black text-[#111827]">{vehicles.length}</p>
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Unit Dikerahkan</p>
+                  <p className="text-2xl font-bold text-[#111827]">{vehicles.length}</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Unit Dikerahkan</p>
                 </div>
               </CardContent>
             </Card>

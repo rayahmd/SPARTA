@@ -12,7 +12,7 @@ export default function SimulationPage() {
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h2 className="text-2xl font-black text-[#111827]">Parameter Simulasi</h2>
+        <h2 className="text-2xl font-bold text-[#111827]">Parameter Simulasi</h2>
         <p className="text-muted-foreground text-sm mt-1">Ubah variabel lingkungan untuk menguji respon sistem AI secara real-time.</p>
       </div>
 
@@ -25,7 +25,7 @@ export default function SimulationPage() {
              <div className="space-y-4">
                <div className="flex justify-between items-center">
                  <span className="font-bold text-slate-700">Intensitas (Base Level)</span>
-                 <span className="font-black text-xl text-[#111827]">{trafficVolume[0]}%</span>
+                 <span className="font-bold text-xl text-[#111827]">{trafficVolume[0]}%</span>
                </div>
                <input
                  type="range"

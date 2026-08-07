@@ -100,7 +100,7 @@ export default function EphorDashboard() {
         <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-[#e5e7eb] p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <h2 className="text-xl font-black text-[#111827]">Digital Twin Surabaya</h2>
+              <h2 className="text-xl font-bold text-[#111827]">Digital Twin Surabaya</h2>
               <Badge variant="outline" className={`text-xs font-bold uppercase ${tabBadge[activeTab].className}`}>
                 <span className="w-1.5 h-1.5 rounded-full mr-1.5 animate-pulse bg-current" />
                 {tabBadge[activeTab].label}

@@ -36,20 +36,20 @@ export function Sidebar() {
               key={item.name}
               href={item.href}
               className={
-                `flex items-center gap-4 px-6 py-3.5 transition-all duration-200 border-l-4 ${isActive
-                  ? 'border-l-[#8F1610] bg-[#8F1610]/10 text-[#8F1610] font-semibold'
-                  : 'border-l-transparent text-slate-400 hover:text-white hover:bg-white/5 font-medium'}`
+                `flex items-center gap-3 px-4 py-2.5 mx-2 rounded-md text-sm transition-colors ${isActive
+                  ? 'bg-white/10 text-white font-medium'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'}`
               }
             >
-              <item.icon size={20} className={isActive ? "text-[#8F1610]" : "text-slate-400"} />
-              <span className="text-sm">{item.name}</span>
+              <item.icon size={18} className={isActive ? "text-white" : "text-slate-400"} />
+              <span>{item.name}</span>
             </Link>
           )
         })}
       </nav>
 
-      <div className="p-6 text-xs text-slate-500 font-medium border-t border-slate-700">
-        <p className="text-[#8F1610] font-bold">SPARTA V1.0 BETA</p>
+      <div className="px-4 py-4 text-xs text-slate-500 border-t border-slate-700">
+        <p className="font-semibold text-slate-300">SPARTA V1.0 BETA</p>
       </div>
     </div>
   )

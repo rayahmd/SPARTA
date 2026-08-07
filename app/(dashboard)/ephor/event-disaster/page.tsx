@@ -59,7 +59,7 @@ export default function EventDisasterPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-black text-[#111827]">Event & Manajemen Bencana</h2>
+          <h2 className="text-2xl font-bold text-[#111827]">Event & Manajemen Bencana</h2>
           <p className="text-muted-foreground text-sm mt-1">Daftarkan event besar atau kejadian darurat agar AI dapat mempersiapkan rerouting otomatis.</p>
         </div>
         <Button className="bg-[#111827] text-white hover:bg-slate-800 font-bold" onClick={() => setShowForm(!showForm)}>
@@ -75,7 +75,7 @@ export default function EventDisasterPage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Nama Event</label>
+                <label className="text-sm font-medium text-slate-600">Nama Event</label>
                 <input
                   className="w-full border border-slate-200 rounded-lg p-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white"
                   placeholder="contoh: Konser Dewa 19..."
@@ -84,7 +84,7 @@ export default function EventDisasterPage() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Lokasi</label>
+                <label className="text-sm font-medium text-slate-600">Lokasi</label>
                 <input
                   className="w-full border border-slate-200 rounded-lg p-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white"
                   placeholder="contoh: Jl. Ahmad Yani"
@@ -93,7 +93,7 @@ export default function EventDisasterPage() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Tanggal</label>
+                <label className="text-sm font-medium text-slate-600">Tanggal</label>
                 <input
                   type="date"
                   className="w-full border border-slate-200 rounded-lg p-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white"
@@ -102,7 +102,7 @@ export default function EventDisasterPage() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-widest">Tingkat Keparahan</label>
+                <label className="text-sm font-medium text-slate-600">Tingkat Keparahan</label>
                 <select
                   className="w-full border border-slate-200 rounded-lg p-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white"
                   value={form.severity}
@@ -129,14 +129,14 @@ export default function EventDisasterPage() {
               <div className={`${severityColors[event.severity] || 'bg-slate-500'} flex items-center justify-center p-6 w-full md:w-40 shrink-0`}>
                 <div className="text-center text-white">
                   <AlertTriangle size={36} className="mx-auto mb-2" />
-                  <p className="font-black text-sm uppercase tracking-widest">{event.severity}</p>
+                  <p className="font-bold text-sm uppercase tracking-wider">{event.severity}</p>
                 </div>
               </div>
               <CardContent className="p-6 flex-1">
                 <div className="flex justify-between items-start gap-4">
                   <div className="space-y-3 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-xl font-black text-[#111827]">{event.name}</h3>
+                      <h3 className="text-xl font-bold text-[#111827]">{event.name}</h3>
                       <Badge variant="outline" className="text-xs font-bold">{event.type}</Badge>
                     </div>
                     <div className="flex flex-wrap gap-4 text-sm text-slate-500">

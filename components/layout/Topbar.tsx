@@ -46,17 +46,17 @@ export function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
         </button>
         <Image src="/sparta.png" alt="SPARTA Logo" width={40} height={40} className="rounded-full" />
         <div>
-          <h1 className="text-xl font-black tracking-tight text-[#111827] leading-none mb-1">SPARTA EPHOR</h1>
-          <p className="text-[10px] text-[#6B7280] font-bold uppercase tracking-widest">Surabaya Traffic Command Center</p>
+          <h1 className="text-lg font-bold tracking-tight text-[#111827] leading-none mb-0.5">SPARTA EPHOR</h1>
+          <p className="text-[10px] text-[#6B7280] font-medium uppercase tracking-wider">Surabaya Traffic Command Center</p>
         </div>
       </div>
 
       <div className="flex items-center gap-6">
           <div className="flex flex-col items-end border-r border-[#e5e7eb] pr-6">
-            <div className="flex items-center gap-2 text-[#111827] font-bold">
+            <div className="flex items-center gap-2 text-[#111827] font-semibold">
               <span>{time ? time.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '...'}</span>
             </div>
-            <div className="text-[11px] text-[#6B7280] font-medium">
+            <div className="text-[11px] text-[#6B7280]">
               <span>{time ? time.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '...'}</span>
             </div>
           </div>
@@ -73,13 +73,13 @@ export function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
             {showNotifications && (
               <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-[#e5e7eb] overflow-hidden z-50">
                 <div className="p-3 border-b border-[#e5e7eb] bg-slate-50 flex justify-between items-center">
-                  <span className="font-bold text-[#111827]">Notifikasi</span>
+                  <span className="font-semibold text-[#111827]">Notifikasi</span>
                   <span className="text-xs text-blue-600 cursor-pointer font-bold">Tandai sudah dibaca</span>
                 </div>
                 <div className="max-h-64 overflow-y-auto">
                   {[1, 2, 3].map((_, i) => (
                     <div key={i} className="p-3 border-b border-[#e5e7eb] hover:bg-slate-50 cursor-pointer">
-                      <p className="text-sm font-bold text-[#111827]">Laporan Insiden Baru</p>
+                      <p className="text-sm font-medium text-[#111827]">Laporan Insiden Baru</p>
                       <p className="text-xs text-slate-500">Masyarakat melaporkan genangan air di Jl. Raya Darmo.</p>
                       <p className="text-[10px] text-slate-400 mt-1">{i * 5 + 2} menit yang lalu</p>
                     </div>
@@ -95,7 +95,7 @@ export function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
               onClick={() => setShowProfile(!showProfile)}
             >
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-bold leading-none text-[#111827]">Operator 1</p>
+                <p className="text-sm font-semibold leading-none text-[#111827]">Operator 1</p>
                 <p className="text-xs text-[#6B7280] mt-1">ATCS Surabaya</p>
               </div>
               <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-700 border border-[#e5e7eb]">

@@ -140,20 +140,20 @@ export default function PredictionPage() {
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.32em] text-slate-400">Forecast Summary</p>
-                  <p className="mt-1 text-base font-black text-slate-950">{selectedTime} — {forecast.hotspot} Hotspot</p>
+                  <p className="mt-1 text-base font-bold text-slate-950">{selectedTime} — {forecast.hotspot} Hotspot</p>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-3">
                   <div className="rounded-2xl bg-slate-50 p-2.5 text-sm text-slate-700">
                     <p className="font-bold text-slate-950">Kemacetan</p>
-                    <p className="mt-1 text-lg font-black text-slate-900">{forecast.congestion}</p>
+                    <p className="mt-1 text-lg font-bold text-slate-900">{forecast.congestion}</p>
                   </div>
                   <div className="rounded-2xl bg-slate-50 p-2.5 text-sm text-slate-700">
                     <p className="font-bold text-slate-950">Waktu Tempuh</p>
-                    <p className="mt-1 text-lg font-black text-slate-900">{forecast.eta}</p>
+                    <p className="mt-1 text-lg font-bold text-slate-900">{forecast.eta}</p>
                   </div>
                   <div className="rounded-2xl bg-slate-50 p-2.5 text-sm text-slate-700">
                     <p className="font-bold text-slate-950">Panjang Antrian</p>
-                    <p className="mt-1 text-lg font-black text-slate-900">{forecast.queue}</p>
+                    <p className="mt-1 text-lg font-bold text-slate-900">{forecast.queue}</p>
                   </div>
                 </div>
               </div>
@@ -187,9 +187,9 @@ export default function PredictionPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-red-600">
-                        <span className="text-xs font-black">{i + 1}</span>
+                        <span className="text-xs font-bold">{i + 1}</span>
                       </div>
-                      <p className="text-sm font-black text-slate-950 leading-tight">{node.name}</p>
+                      <p className="text-sm font-bold text-slate-950 leading-tight">{node.name}</p>
                     </div>
                     <div className="flex shrink-0 items-center gap-3 text-right">
                       <div>
@@ -218,7 +218,7 @@ export default function PredictionPage() {
                     <p className="text-sm font-bold text-slate-950">{selectedNode.name}</p>
                     <p className="text-xs text-slate-500">Prediksi 15 menit ke depan</p>
                   </div>
-                  <span className="inline-flex items-center rounded-xl bg-red-500/10 px-2.5 py-1 text-xs font-black text-red-600">
+                  <span className="inline-flex items-center rounded-xl bg-red-500/10 px-2.5 py-1 text-xs font-bold text-red-600">
                     {selectedNode.predicted30 >= 90 ? 'Tinggi' : selectedNode.predicted30 >= 80 ? 'Sedang' : 'Rendah'}
                   </span>
                 </div>
@@ -231,15 +231,15 @@ export default function PredictionPage() {
                 <div className="grid gap-2 rounded-2xl bg-slate-50 p-3 text-sm text-slate-700">
                   <div className="flex items-center justify-between">
                     <span>Kemacetan saat ini</span>
-                    <span className="font-black text-slate-900">{selectedNode.currentLevel}%</span>
+                    <span className="font-bold text-slate-900">{selectedNode.currentLevel}%</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>Prediksi 30 menit</span>
-                    <span className="font-black text-red-600">{selectedNode.predicted30}%</span>
+                    <span className="font-bold text-red-600">{selectedNode.predicted30}%</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>Confidence</span>
-                    <span className="font-black text-slate-900">{selectedNode.confidence}%</span>
+                    <span className="font-bold text-slate-900">{selectedNode.confidence}%</span>
                   </div>
                 </div>
               </div>
@@ -247,7 +247,7 @@ export default function PredictionPage() {
               <Button
                 disabled={!selectedNode.recommendation || approvedIds.includes(selectedNode.id)}
                 onClick={() => handleApprove(selectedNode.id, 'increase_green_time')}
-                className="mt-4 w-full h-11 rounded-2xl bg-amber-500 text-slate-950 font-black hover:bg-amber-400 disabled:opacity-50"
+                className="mt-4 w-full h-11 rounded-2xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 disabled:opacity-50"
               >
                 {approvedIds.includes(selectedNode.id) ? 'Disetujui ✓' : 'Review & Approve'}
               </Button>

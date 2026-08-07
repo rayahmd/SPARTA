@@ -25,7 +25,7 @@ export default function TrafficLightPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-black text-[#111827]">ATCS Control Panel</h2>
+          <h2 className="text-2xl font-bold text-[#111827]">ATCS Control Panel</h2>
           <p className="text-muted-foreground text-sm mt-1">Status real-time dan kontrol manual API ATCS Surabaya.</p>
         </div>
         <div className="flex gap-2">
@@ -50,12 +50,12 @@ export default function TrafficLightPage() {
                   <h3 className="font-bold text-[#111827] text-lg">{light.name}</h3>
                   <div className="flex gap-4 mt-3">
                     <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Durasi Hijau</p>
-                      <p className="text-lg font-black text-green-600">{light.greenSec}s</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Durasi Hijau</p>
+                      <p className="text-lg font-bold text-green-600">{light.greenSec}s</p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Durasi Merah</p>
-                      <p className="text-lg font-black text-red-500">{light.redSec}s</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Durasi Merah</p>
+                      <p className="text-lg font-bold text-red-500">{light.redSec}s</p>
                     </div>
                   </div>
                 </div>

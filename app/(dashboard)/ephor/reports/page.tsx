@@ -36,7 +36,7 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-end flex-wrap gap-4">
         <div>
-          <h2 className="text-2xl font-black text-[#111827]">Laporan Aktivitas Sistem</h2>
+          <h2 className="text-2xl font-bold text-[#111827]">Laporan Aktivitas Sistem</h2>
           <p className="text-muted-foreground text-sm mt-1">Riwayat lengkap seluruh aktivitas AI, operator, dan insiden.</p>
         </div>
         <div className="flex gap-3">
@@ -52,26 +52,26 @@ export default function ReportsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="rounded-xl shadow-sm border border-slate-200 bg-[#111827] text-white">
           <CardContent className="p-5">
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Total Aktivitas</p>
-            <p className="text-3xl font-black">{simulatedLogs.length}</p>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Total Aktivitas</p>
+            <p className="text-3xl font-bold">{simulatedLogs.length}</p>
           </CardContent>
         </Card>
         <Card className="rounded-xl shadow-sm border border-slate-200">
           <CardContent className="p-5">
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-2">AI Disetujui</p>
-            <p className="text-3xl font-black text-green-600">{simulatedLogs.filter(l => l.type === 'AI Approve').length}</p>
+            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">AI Disetujui</p>
+            <p className="text-3xl font-bold text-green-600">{simulatedLogs.filter(l => l.type === 'AI Approve').length}</p>
           </CardContent>
         </Card>
         <Card className="rounded-xl shadow-sm border border-slate-200">
           <CardContent className="p-5">
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-2">AI Ditolak</p>
-            <p className="text-3xl font-black text-red-500">{simulatedLogs.filter(l => l.type === 'AI Reject').length}</p>
+            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">AI Ditolak</p>
+            <p className="text-3xl font-bold text-red-500">{simulatedLogs.filter(l => l.type === 'AI Reject').length}</p>
           </CardContent>
         </Card>
         <Card className="rounded-xl shadow-sm border border-slate-200">
           <CardContent className="p-5">
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-2">Insiden Aktif</p>
-            <p className="text-3xl font-black text-orange-500">{incidents.length}</p>
+            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Insiden Aktif</p>
+            <p className="text-3xl font-bold text-orange-500">{incidents.length}</p>
           </CardContent>
         </Card>
       </div>
@@ -84,12 +84,12 @@ export default function ReportsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
-                <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">ID</th>
-                <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Tipe</th>
-                <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Lokasi / Node</th>
-                <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Aksi</th>
-                <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Hasil</th>
-                <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Waktu</th>
+                <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">ID</th>
+                <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Tipe</th>
+                <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Lokasi / Node</th>
+                <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Aksi</th>
+                <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Hasil</th>
+                <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Waktu</th>
               </tr>
             </thead>
             <tbody>
@@ -97,7 +97,7 @@ export default function ReportsPage() {
                 <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 font-mono text-xs text-slate-400 font-bold">{log.id}</td>
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${typeStyles[log.type] || 'bg-slate-100 text-slate-600'}`}>
+                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${typeStyles[log.type] || 'bg-slate-100 text-slate-600'}`}>
                       {log.type}
                     </span>
                   </td>
