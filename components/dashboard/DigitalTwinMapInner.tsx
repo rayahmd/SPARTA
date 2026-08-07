@@ -92,6 +92,12 @@ function getColor(level: number): string {
   if (level < 65) return '#eab308'
   return '#ef4444'
 }
+function getTrafficColor(level: number): string {
+  if (level < 40) return '#4aaf51'
+  if (level < 60) return '#f9b82a'
+  if (level < 75) return '#f47b20'
+  return '#d32029'
+}
 function getDarkerColor(level: number): string {
   if (level < 40) return '#16a34a'
   if (level < 65) return '#ca8a04'
@@ -278,7 +284,7 @@ function LiveOverlayControls({ overlays, setOverlays }: { overlays: OverlayState
       {/* Legend */}
       <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-slate-200 p-2">
         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1 mb-1.5">KONDISI</p>
-        {[['#22c55e', 'Lancar < 40%'], ['#eab308', 'Sedang 40–65%'], ['#ef4444', 'Macet > 65%']].map(([c, l]) => (
+        {[['#4aaf51', 'Lancar < 40%'], ['#f9b82a', 'Sedang 40–60%'], ['#f47b20', 'Padat 60–75%'], ['#d32029', 'Macet > 75%']].map(([c, l]) => (
           <div key={c} className="flex items-center gap-2 px-1 py-0.5">
             <div className="w-3 h-3 rounded-full shrink-0" style={{ background: c }} />
             <span className="text-[10px] font-medium text-slate-600">{l}</span>
@@ -794,15 +800,25 @@ export default function DigitalTwinMapInner({ nodes, vehicles, activeTab, onNode
         })
       }
 
+      if (!map.getLayer('segments-casing')) {
+        map.addLayer({
+          id: 'segments-casing', type: 'line', source: 'segments',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#ffffff',
+            'line-width': 9,
+            'line-opacity': 0.55,
+          },
+        })
+      }
       if (!map.getLayer('segments-layer')) {
         map.addLayer({
           id: 'segments-layer', type: 'line', source: 'segments',
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
             'line-color': ['get', 'color'],
-            'line-width': ['get', 'width'],
-            'line-opacity': 0.6,
-            'line-dasharray': ['get', 'dash'],
+            'line-width': 5.5,
+            'line-opacity': 0.85,
           },
         })
       }
@@ -940,7 +956,7 @@ export default function DigitalTwinMapInner({ nodes, vehicles, activeTab, onNode
         const pred = activeTab === 'prediction' ? Math.min(100, s.avgLevel * mult) : s.avgLevel
         features.push(lineFeature(
           s.geometry.map(([la, ln]): [number, number] => [ln, la]),
-          { color: getColor(pred), width: activeTab === 'simulation' ? 5 : 4, dash: [1, 0] }
+          { color: getTrafficColor(pred) }
         ))
       })
     } else {
@@ -950,7 +966,7 @@ export default function DigitalTwinMapInner({ nodes, vehicles, activeTab, onNode
         const pred = activeTab === 'prediction' ? Math.min(100, avg * mult) : avg
         features.push(lineFeature(
           [[nodes[i].lng, nodes[i].lat], [nodes[j].lng, nodes[j].lat]],
-          { color: getColor(pred), width: 4, dash: [5, 3] }
+          { color: getTrafficColor(pred) }
         ))
       })
     }
