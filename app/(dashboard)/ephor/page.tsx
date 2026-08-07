@@ -44,7 +44,7 @@ interface Incident {
 export default function EphorDashboard() {
   const [selectedNode, setSelectedNode] = useState<TrafficNode | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<'live' | 'prediction' | 'simulation'>('live')
+  const [activeTab, setActiveTab] = useState<'live' | 'prediction'>('live')
 
   const { data: nodes = [], mutate: mutateNodes } = useSWR<TrafficNode[]>(
     '/api/traffic-nodes', fetcher, { refreshInterval: 5000 }
@@ -89,7 +89,6 @@ export default function EphorDashboard() {
   const tabBadge = {
     live: { label: 'LIVE', className: 'border-[#16A34A] text-[#16A34A] bg-green-50' },
     prediction: { label: 'PREDIKSI +30M', className: 'border-[#2563EB] text-[#2563EB] bg-blue-50' },
-    simulation: { label: 'SIMULASI', className: 'border-purple-600 text-purple-600 bg-purple-50' },
   }
 
   return (
@@ -100,7 +99,7 @@ export default function EphorDashboard() {
         <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-[#e5e7eb] p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <h2 className="text-xl font-black text-[#111827]">Digital Twin Surabaya</h2>
+              <h2 className="text-xl font-bold text-[#111827]">Digital Twin Surabaya</h2>
               <Badge variant="outline" className={`text-xs font-bold uppercase ${tabBadge[activeTab].className}`}>
                 <span className="w-1.5 h-1.5 rounded-full mr-1.5 animate-pulse bg-current" />
                 {tabBadge[activeTab].label}
@@ -110,7 +109,6 @@ export default function EphorDashboard() {
               <TabsList className="h-10 bg-[#f3f4f6] rounded-lg">
                 <TabsTrigger value="live" className="text-xs px-4 h-8 font-semibold data-[state=active]:bg-[#8F1610] data-[state=active]:text-white">Live</TabsTrigger>
                 <TabsTrigger value="prediction" className="text-xs px-4 h-8 font-semibold data-[state=active]:bg-[#2563EB] data-[state=active]:text-white">Prediction</TabsTrigger>
-                <TabsTrigger value="simulation" className="text-xs px-4 h-8 font-semibold data-[state=active]:bg-purple-600 data-[state=active]:text-white">Simulation</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>

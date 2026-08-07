@@ -10,7 +10,7 @@ export default async function UnderConstructionPage({ params }: { params: Promis
         <Hammer size={40} className="text-slate-400" />
       </div>
       <div>
-        <h2 className="text-2xl font-black text-[#111827] capitalize mb-2">{pageName}</h2>
+        <h2 className="text-2xl font-bold text-[#111827] capitalize mb-2">{pageName}</h2>
         <p>Halaman ini sedang dalam tahap pengembangan (Prototype).</p>
       </div>
     </div>

@@ -13,34 +13,30 @@ interface KpiCardProps {
 
 export function KpiCard({ title, value, unit, icon: Icon, highlight }: KpiCardProps) {
   return (
-    <Card className={`relative overflow-hidden transition-all duration-300 hover:shadow-lg ${
-      highlight 
-        ? 'border-primary bg-primary/5 shadow-primary/10 shadow-md' 
-        : 'border-border hover:border-primary/30'
-    }`}>
+    <Card className={`relative ${highlight ? 'border-primary bg-primary/5' : 'border-border'}`}>
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               {title}
             </p>
             <div className="flex items-baseline gap-1.5">
-              <span className={`text-3xl font-bold tracking-tight ${
+              <span className={`text-2xl font-bold tracking-tight ${
                 highlight ? 'text-primary' : 'text-foreground'
               }`}>
                 {value}
               </span>
               {unit && (
-                <span className="text-sm text-muted-foreground font-medium">{unit}</span>
+                <span className="text-sm text-muted-foreground">{unit}</span>
               )}
             </div>
           </div>
-          <div className={`p-2.5 rounded-lg ${
+          <div className={`p-2 rounded-md ${
             highlight 
               ? 'bg-primary/10 text-primary' 
               : 'bg-secondary text-muted-foreground'
           }`}>
-            <Icon size={22} />
+            <Icon size={18} />
           </div>
         </div>
       </CardContent>

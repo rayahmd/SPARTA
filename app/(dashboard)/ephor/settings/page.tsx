@@ -25,7 +25,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h2 className="text-2xl font-black text-[#111827]">Pengaturan Sistem</h2>
+        <h2 className="text-2xl font-bold text-[#111827]">Pengaturan Sistem</h2>
         <p className="text-muted-foreground text-sm mt-1">Konfigurasi preferensi notifikasi, threshold AI, dan tampilan operator.</p>
       </div>
 
@@ -39,22 +39,22 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="p-6">
           <div className="flex items-center gap-5 mb-6">
-            <div className="w-20 h-20 rounded-full bg-[#1e293b] flex items-center justify-center text-white font-black text-2xl shrink-0">
+            <div className="w-20 h-20 rounded-full bg-[#1e293b] flex items-center justify-center text-white font-bold text-2xl shrink-0">
               O1
             </div>
             <div>
-              <h3 className="text-xl font-black text-[#111827]">Operator 1</h3>
+              <h3 className="text-xl font-bold text-[#111827]">Operator 1</h3>
               <p className="text-sm text-slate-500 font-medium">Dinas Perhubungan Kota Surabaya</p>
               <Badge className="mt-2 bg-[#111827] text-white hover:bg-[#111827]">ATCS Level 3 – Full Access</Badge>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nama Lengkap</label>
+              <label className="text-sm font-medium text-slate-600">Nama Lengkap</label>
               <input className="w-full border border-slate-200 rounded-lg p-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-slate-400" defaultValue="Operator Satu" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Unit Kerja</label>
+              <label className="text-sm font-medium text-slate-600">Unit Kerja</label>
               <input className="w-full border border-slate-200 rounded-lg p-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-slate-400" defaultValue="ATCS Surabaya" />
             </div>
           </div>
@@ -108,7 +108,7 @@ export default function SettingsPage() {
                 <p className="font-bold text-[#111827]">Threshold Rekomendasi AI</p>
                 <p className="text-xs text-slate-500">AI hanya memberi rekomendasi jika kemacetan di atas nilai ini.</p>
               </div>
-              <span className="font-black text-2xl text-[#111827] w-16 text-right">{aiThreshold}%</span>
+              <span className="font-bold text-2xl text-[#111827] w-16 text-right">{aiThreshold}%</span>
             </div>
             <input
               type="range" min={10} max={90} step={5}
@@ -124,7 +124,7 @@ export default function SettingsPage() {
                 <p className="font-bold text-[#111827]">Interval Polling Data (SWR)</p>
                 <p className="text-xs text-slate-500">Seberapa sering dashboard memperbarui data dari server.</p>
               </div>
-              <span className="font-black text-2xl text-[#111827] w-24 text-right">{pollingInterval}s</span>
+              <span className="font-bold text-2xl text-[#111827] w-24 text-right">{pollingInterval}s</span>
             </div>
             <input
               type="range" min={2} max={30} step={1}

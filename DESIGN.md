@@ -39,9 +39,10 @@ Government traffic management control center. Operate mode: data-dense monitorin
 
 ## Typography
 
-**Family:** Inter (sans-serif, variable font, pre-loaded in Next.js)
-- Perfect for dense UI, excellent readability at small sizes
-- Clear distinction between weights, system-like appearance
+**Family:** Plus Jakarta Sans (sans-serif, variable font, pre-loaded in Next.js)
+- Geometric-but-humanist grotesque, excellent legibility at dense UI sizes
+- Slightly taller x-height and wider aperture than Inter for control-room viewing distances
+- Weights used sparingly: hierarchy via weight and size steps, never a blanket 900
 
 **Scale (rem):**
 - Display: `2.5rem` (40px) - dashboard title
@@ -54,10 +55,9 @@ Government traffic management control center. Operate mode: data-dense monitorin
 
 **Weights:**
 - Regular: 400 (body text)
-- Medium: 500 (labels, active states)
-- Semibold: 600 (subheadings, important labels)
-- Bold: 700 (headers, critical alerts)
-- Black: 900 (dashboard title, primary CTAs)
+- Medium: 500 (labels, secondary emphasis)
+- Semibold: 600 (subheadings, panel titles, active states)
+- Bold: 700 (page titles, critical alerts)
 
 **Tracking:** Normal for body, tighter for UI text (0 to -0.02em), normal for headings
 

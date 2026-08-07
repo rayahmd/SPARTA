@@ -1,7 +1,19 @@
 'use client'
+import dynamic from 'next/dynamic'
 import { Badge } from '@/components/ui/badge'
-import { CCTVMap } from '@/components/dashboard/CCTVMap'
 import { Camera, Video } from 'lucide-react'
+
+const CCTVMap = dynamic(() => import('@/components/dashboard/CCTVMap').then((m) => m.CCTVMap), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-[520px] flex items-center justify-center bg-slate-50">
+      <div className="flex flex-col items-center gap-2 text-slate-400">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <span className="text-sm">Memuat peta...</span>
+      </div>
+    </div>
+  ),
+})
 
 const cameras = [
   { id: '0001', name: 'Persimpangan Ahmad Yani', status: 'Online', area: 'Barat', lat: -7.2621, lng: 112.7348 },
@@ -18,7 +30,7 @@ export default function CCTVPage() {
       <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-slate-500 font-semibold">Peta CCTV</p>
-          <h2 className="text-2xl font-black text-slate-900">Distribusi Kamera Surabaya</h2>
+          <h2 className="text-2xl font-bold text-slate-900">Distribusi Kamera Surabaya</h2>
           <p className="text-sm text-slate-500 mt-1">Logo CCTV menunjukkan titik kamera yang tersebar di kota.</p>
         </div>
         <Badge className="bg-slate-100 text-slate-800 text-xs font-bold uppercase px-3 py-2">{cameras.length} titik</Badge>
@@ -44,7 +56,7 @@ export default function CCTVPage() {
             </div>
             <div>
               <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400 font-semibold">Daftar Kamera</p>
-              <p className="text-lg font-black">SPARTA CCTV Overlay</p>
+              <p className="text-lg font-bold">SPARTA CCTV Overlay</p>
             </div>
           </div>
 
@@ -61,7 +73,7 @@ export default function CCTVPage() {
                     <p className="text-[11px] text-slate-500 mt-1">{cam.area}</p>
                   </div>
                   <span
-                    className={`text-[10px] font-black uppercase ${
+                    className={`text-[10px] font-bold uppercase ${
                       cam.status === 'Online' ? 'text-emerald-300' : 'text-slate-500'
                     }`}
                   >

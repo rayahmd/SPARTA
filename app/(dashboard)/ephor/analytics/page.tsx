@@ -37,7 +37,7 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-black text-[#111827]">Analytics & Performance</h2>
+        <h2 className="text-2xl font-bold text-[#111827]">Analytics & Performance</h2>
         <p className="text-muted-foreground text-sm mt-1">Visualisasi data trafik dan performa sistem</p>
       </div>
 
@@ -46,8 +46,8 @@ export default function AnalyticsPage() {
         {aiPerformance.map(kpi => (
           <Card key={kpi.label} className="rounded-xl shadow-sm border border-slate-200">
             <CardContent className="p-5 text-center">
-              <p className={`text-3xl font-black ${kpi.color}`}>{kpi.value}%</p>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-2 leading-tight">{kpi.label}</p>
+              <p className={`text-3xl font-bold ${kpi.color}`}>{kpi.value}%</p>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-2 leading-tight">{kpi.label}</p>
             </CardContent>
           </Card>
         ))}
