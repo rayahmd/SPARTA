@@ -9,7 +9,7 @@ export default function LiveMapPage() {
   const { data: nodes = [] } = useSWR('/api/traffic-nodes', fetcher, { refreshInterval: 5000 })
 
   return (
-    <div className="relative -m-6 h-[calc(100vh-64px)] overflow-hidden">
+    <div className="relative -m-6 h-screen overflow-hidden">
       <DigitalTwinMap nodes={nodes} onNodeSelect={() => {}} />
     </div>
   )

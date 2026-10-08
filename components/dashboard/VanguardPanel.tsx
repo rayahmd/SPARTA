@@ -1,10 +1,12 @@
 'use client'
 import { useState } from 'react'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Ambulance, Zap, Map as MapIcon, ShieldAlert, ChevronDown, ChevronUp } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface EmergencyVehicle {
   id: string
@@ -25,9 +27,10 @@ export interface VanguardPanelProps {
   onTrigger: () => void
   isMinimized?: boolean
   onMinimizeToggle?: () => void
+  className?: string
 }
 
-export function VanguardPanel({ vehicles, onTrigger, isMinimized = false, onMinimizeToggle }: VanguardPanelProps) {
+export function VanguardPanel({ vehicles, onTrigger, isMinimized = false, onMinimizeToggle, className }: VanguardPanelProps) {
   const [selectedRoute, setSelectedRoute] = useState<any | null>(null)
   
   const handleOverride = async (id: string) => {
@@ -37,12 +40,12 @@ export function VanguardPanel({ vehicles, onTrigger, isMinimized = false, onMini
 
   return (
     <>
-      <Card className="border-border h-full shadow-sm rounded-lg overflow-hidden flex flex-col bg-white">
+      <Card className={cn("border-border h-full shadow-sm rounded-lg overflow-hidden flex flex-col bg-white", className)}>
         <CardHeader className="pb-3 pt-4 px-4 shrink-0 border-b border-border/50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <CardTitle className="text-sm font-semibold text-[#111827]">
-                SPARTA-Vanguard
+                SPARTA Vanguard
               </CardTitle>
               {onMinimizeToggle && (
                 <button 
@@ -54,9 +57,9 @@ export function VanguardPanel({ vehicles, onTrigger, isMinimized = false, onMini
                 </button>
               )}
             </div>
-            <button className="text-xs text-blue-600 hover:underline">
+            <Link href="/ephor/vanguard" className="text-xs text-blue-600 hover:underline">
               Lihat Semua
-            </button>
+            </Link>
           </div>
         </CardHeader>
         {!isMinimized && (
@@ -80,7 +83,7 @@ export function VanguardPanel({ vehicles, onTrigger, isMinimized = false, onMini
                   </div>
                   
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-[#1e1b4b] flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-lg bg-[#8F1610] flex items-center justify-center shrink-0">
                       <Ambulance size={20} className="text-white" />
                     </div>
                     <div>
@@ -104,8 +107,8 @@ export function VanguardPanel({ vehicles, onTrigger, isMinimized = false, onMini
                         {v.distanceKm} <span className="font-normal text-[10px]">km</span>
                       </p>
                     </div>
-                    <div className="p-2 rounded-md bg-green-50 border border-green-100 flex flex-col items-center justify-center">
-                      <p className="text-[10px] text-green-700 mb-0.5">Green Wave</p>
+                    <div className={`p-2 rounded-md border flex flex-col items-center justify-center ${v.greenWaveOn ? 'bg-green-50 border-green-100' : 'bg-[#f8fafc] border-slate-100'}`}>
+                      <p className={`text-[10px] mb-0.5 ${v.greenWaveOn ? 'text-green-700' : 'text-slate-400'}`}>Green Wave</p>
                       <p className={`text-xs font-semibold ${v.greenWaveOn ? 'text-green-700' : 'text-slate-400'}`}>
                         {v.greenWaveOn ? 'Aktif' : 'Off'}
                       </p>
@@ -175,7 +178,7 @@ export function VanguardPanel({ vehicles, onTrigger, isMinimized = false, onMini
               </div>
               
               <div className="p-3 bg-blue-50 text-blue-800 rounded-md text-xs flex items-start gap-2">
-                <ShieldAlert size={16} className="shrink-0 mt-0.5" />
+                {/* <ShieldAlert size={16} className="shrink-0 mt-0.5" /> */}
                 Sistem Green Wave sedang aktif dan akan memprioritaskan lampu hijau di sepanjang rute ini.
               </div>
             </div>

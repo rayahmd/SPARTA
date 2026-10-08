@@ -34,7 +34,7 @@ export function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   if (pathname.includes('/hoplite')) return null;
 
   return (
-    <header className="h-[64px] bg-white border-b border-[#e5e7eb] flex items-center justify-between px-6 z-20 shrink-0">
+    <header className="h-[60px] bg-white border-b border-[#e5e7eb] flex items-center justify-between px-5 z-20 shrink-0">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -44,24 +44,28 @@ export function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
         >
           <Menu size={20} />
         </button>
-        <Image src="/sparta.png" alt="SPARTA Logo" width={40} height={40} className="rounded-full" />
-        <div>
-          <h1 className="text-lg font-bold tracking-tight text-[#111827] leading-none mb-0.5">SPARTA EPHOR</h1>
-          <p className="text-[10px] text-[#6B7280] font-medium uppercase tracking-wider">Surabaya Traffic Command Center</p>
+        <div className="flex items-center gap-3 rounded-3xl bg-slate-100 px-3 py-2">
+          <div className="h-10 w-10 rounded-2xl bg-[#581d24] grid place-items-center text-white">
+            {/* <ShieldAlert size={18} /> */}
+          </div>
+          <div className="leading-none">
+            <p className="text-sm font-semibold text-[#111827]">Surabaya Traffic Command Center</p>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">SPARTA EPHOR</p>
+          </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-6">
-          <div className="flex flex-col items-end border-r border-[#e5e7eb] pr-6">
-            <div className="flex items-center gap-2 text-[#111827] font-semibold">
-              <span>{time ? time.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '...'}</span>
+      <div className="flex items-center gap-4">
+          <div className="flex flex-col items-end border-r border-[#e5e7eb] pr-5">
+            <div className="text-sm font-semibold text-[#111827] leading-none">
+              {time ? time.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '...'}
             </div>
             <div className="text-[11px] text-[#6B7280]">
-              <span>{time ? time.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '...'}</span>
+              {time ? time.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '...'}
             </div>
           </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <div className="relative" ref={notifRef}>
             <button 
               onClick={() => setShowNotifications(!showNotifications)}

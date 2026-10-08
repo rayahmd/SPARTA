@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Brain, CheckCircle2, ChevronDown, ChevronUp, ChevronRight, Check, TrendingUp } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface TrafficNode {
   id: string
@@ -18,9 +19,10 @@ export interface AiRecommendationPanelProps {
   onApprove: (id: string, action: string) => void
   isMinimized?: boolean
   onMinimizeToggle?: () => void
+  className?: string
 }
 
-function buildAiReasoning(node: TrafficNode) {
+export function buildAiReasoning(node: TrafficNode) {
   const trend = node.predicted30 - node.currentLevel
   const trendPct = trend > 0 ? `+${trend}%` : `${trend}%`
   const forecastTime = node.predicted30 > 80 ? '15 menit' : '30 menit'
@@ -146,12 +148,12 @@ function RecommendationCard({ node, onApprove }: { node: TrafficNode; onApprove:
   )
 }
 
-export function AiRecommendationPanel({ nodes, onApprove, isMinimized = false, onMinimizeToggle }: AiRecommendationPanelProps) {
+export function AiRecommendationPanel({ nodes, onApprove, isMinimized = false, onMinimizeToggle, className }: AiRecommendationPanelProps) {
   const nodesWithRecs = nodes.filter(n => n.recommendation)
     .sort((a, b) => b.predicted30 - a.predicted30)
 
   return (
-    <Card className="border-border h-full shadow-sm rounded-lg overflow-hidden flex flex-col bg-white">
+    <Card className={cn("border-border h-full shadow-sm rounded-lg overflow-hidden flex flex-col bg-white", className)}>
       <CardHeader className="pb-3 pt-4 px-4 shrink-0 border-b border-border/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

@@ -1,9 +1,8 @@
 'use client'
 import useSWR from 'swr'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { AlertTriangle, MapPin, CheckCircle2 } from 'lucide-react'
+import { CheckCircle2 } from 'lucide-react'
 import { useState } from 'react'
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
@@ -13,7 +12,28 @@ interface Incident {
   type: string
   description: string
   status: string
+  source: string
+  createdAt: string
 }
+
+const typeStyles: Record<string, string> = {
+  kecelakaan: 'bg-red-100 text-red-700',
+  banjir: 'bg-sky-100 text-sky-700',
+  jalan_ditutup: 'bg-orange-100 text-orange-700',
+  event: 'bg-purple-100 text-purple-700',
+  hambatan: 'bg-amber-100 text-amber-700',
+}
+
+const sourceStyles = (source: string) =>
+  source === 'crowdsource'
+    ? 'bg-purple-100 text-purple-700'
+    : 'bg-blue-100 text-blue-700'
+
+const formatType = (type: string) =>
+  type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+
+const formatTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
 
 export default function PulsePage() {
   const { data: incidents = [], mutate } = useSWR<Incident[]>('/api/incidents', fetcher, { refreshInterval: 5000 })
@@ -35,52 +55,67 @@ export default function PulsePage() {
         <p className="text-muted-foreground text-sm mt-1">Laporan crowdsourcing dari masyarakat via aplikasi Hoplite.</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 max-w-4xl">
-        {incidents.length === 0 ? (
-          <div className="py-12 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
-            <CheckCircle2 size={48} className="mx-auto text-green-500 mb-4 opacity-50" />
-            <h3 className="text-lg font-bold text-[#111827]">Tidak ada laporan insiden aktif</h3>
-            <p className="text-sm text-slate-500 mt-1">Semua laporan dari masyarakat telah ditangani.</p>
+      {incidents.length === 0 ? (
+        <div className="py-12 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
+          <CheckCircle2 size={48} className="mx-auto text-green-500 mb-4 opacity-50" />
+          <h3 className="text-lg font-bold text-[#111827]">Tidak ada laporan insiden aktif</h3>
+          <p className="text-sm text-slate-500 mt-1">Semua laporan dari masyarakat telah ditangani.</p>
+        </div>
+      ) : (
+        <Card className="rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <CardHeader className="border-b border-slate-100 bg-slate-50/50">
+            <CardTitle className="text-lg font-bold text-[#111827]">Laporan Masyarakat Aktif</CardTitle>
+          </CardHeader>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50">
+                  <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">ID</th>
+                  <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Tipe</th>
+                  <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Deskripsi</th>
+                  <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Sumber</th>
+                  <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Waktu</th>
+                  <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                  <th className="text-left px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {incidents.map(incident => (
+                  <tr key={incident.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 font-mono text-xs text-slate-400 font-bold">{incident.id.slice(0, 6)}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${typeStyles[incident.type] || 'bg-slate-100 text-slate-600'}`}>
+                        {formatType(incident.type || 'insiden')}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-slate-600 max-w-sm">{incident.description}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${sourceStyles(incident.source)}`}>
+                        {incident.source === 'crowdsource' ? 'Masyarakat' : 'Sistem AI'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-slate-400 font-bold font-mono text-xs">{formatTime(incident.createdAt)}</td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-600">
+                        <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-1.5" /> Aktif
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <Button
+                        className="bg-[#111827] hover:bg-slate-800 text-white font-bold text-xs h-8"
+                        onClick={() => handleResolve(incident.id)}
+                        disabled={resolving === incident.id}
+                      >
+                        {resolving === incident.id ? 'Memproses...' : 'Tandai Selesai'}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        ) : (
-          incidents.map(incident => (
-            <Card key={incident.id} className="rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="flex flex-col sm:flex-row">
-                <div className="p-6 bg-red-50 flex items-center justify-center shrink-0 border-b sm:border-b-0 sm:border-r border-red-100 w-full sm:w-32">
-                  <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center text-red-600">
-                    <AlertTriangle size={32} />
-                  </div>
-                </div>
-                <CardContent className="p-6 flex-1 flex flex-col justify-center">
-                  <div className="flex justify-between items-start gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge variant="destructive" className="bg-red-500 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5">
-                          {incident.type}
-                        </Badge>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center">
-                          <MapPin size={12} className="mr-1" /> SURABAYA PUSAT
-                        </span>
-                      </div>
-                      <h3 className="text-lg font-bold text-[#111827]">{incident.description}</h3>
-                      <p className="text-sm text-slate-500 mt-2">
-                        Dilaporkan oleh masyarakat via aplikasi Hoplite. Sistem AI telah mendeteksi anomali perlambatan arus di sekitar area ini.
-                      </p>
-                    </div>
-                    <Button 
-                      className="bg-[#111827] hover:bg-slate-800 text-white font-bold shrink-0"
-                      onClick={() => handleResolve(incident.id)}
-                      disabled={resolving === incident.id}
-                    >
-                      {resolving === incident.id ? 'Memproses...' : 'Tandai Selesai'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </div>
-            </Card>
-          ))
-        )}
-      </div>
+        </Card>
+      )}
     </div>
   )
 }

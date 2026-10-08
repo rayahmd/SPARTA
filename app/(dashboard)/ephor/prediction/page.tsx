@@ -44,7 +44,7 @@ interface EmergencyVehicle {
   status: string;
 }
 
-const mapTimes = ["Now", "15 Menit"];
+const mapTimes = ["Now", "15 Menit", "30 Menit", "60 Menit"];
 
 // Real Surabaya coordinates for the named congestion corridors from the demo dataset
 const nodes: TrafficNode[] = [
@@ -101,6 +101,18 @@ const forecastOverview = {
     eta: "14 mnt",
     queue: "112 Kendaraan",
     hotspot: 4,
+  },
+  "30 Menit": {
+    congestion: "85%",
+    eta: "18 mnt",
+    queue: "135 Kendaraan",
+    hotspot: 5,
+  },
+  "60 Menit": {
+    congestion: "92%",
+    eta: "24 mnt",
+    queue: "160 Kendaraan",
+    hotspot: 7,
   },
 };
 

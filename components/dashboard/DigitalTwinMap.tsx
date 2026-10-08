@@ -45,8 +45,11 @@ interface DigitalTwinMapProps {
   onNodeSelect: (node: TrafficNode) => void
   onApprove?: (id: string, action: string) => void
   initialOverlays?: Partial<{ cctv: boolean; lights: boolean; vehicles: boolean; crowd: boolean; events: boolean }>
+  topLeftSlot?: React.ReactNode
+  focusPadding?: Partial<{ top: number; bottom: number; left: number; right: number }>
+  focusVehicle?: { id: string; seq: number } | null
 }
 
-export function DigitalTwinMap({ nodes, vehicles = [], activeTab = 'live', onNodeSelect, onApprove, initialOverlays }: DigitalTwinMapProps) {
-  return <MapInner nodes={nodes} vehicles={vehicles} activeTab={activeTab} onNodeSelect={onNodeSelect} onApprove={onApprove} initialOverlays={initialOverlays} />
+export function DigitalTwinMap({ nodes, vehicles = [], activeTab = 'live', onNodeSelect, onApprove, initialOverlays, topLeftSlot, focusPadding, focusVehicle }: DigitalTwinMapProps) {
+  return <MapInner nodes={nodes} vehicles={vehicles} activeTab={activeTab} onNodeSelect={onNodeSelect} onApprove={onApprove} initialOverlays={initialOverlays} topLeftSlot={topLeftSlot} focusPadding={focusPadding} focusVehicle={focusVehicle} />
 }
