@@ -1,7 +1,7 @@
 // Layer kustom MapLibre yang menggambar marker 3D (three.js) langsung di kanvas
-// peta: lampu lalu lintas di tiap persimpangan dan ambulans yang melaju di
-// sepanjang rutenya. Model berbagi konteks WebGL dengan peta, jadi ikut miring
-// dan berputar bersama kamera peta.
+// peta: lampu lalu lintas di tiap persimpangan, ambulans yang melaju di
+// sepanjang rutenya, dan armada Suroboyo Bus di koridornya. Model berbagi
+// konteks WebGL dengan peta, jadi ikut miring dan berputar bersama kamera peta.
 import {
   Camera,
   DirectionalLight,
@@ -22,6 +22,8 @@ import {
 import {
   AMBULANCE_TOP,
   AmbulanceModel,
+  BUS_TOP,
+  BusModel,
   ModelKit,
   SIGNAL_RADIUS,
   SIGNAL_TOP,
@@ -57,8 +59,29 @@ export interface VehicleState {
   /** Tinggi model di layar (px), untuk offset popup. */
   screenHeight: number;
 }
+export interface ModelBus {
+  id: string;
+  /** Kode lambung pada label, mis. "SB-07". */
+  code: string;
+  routeId: string;
+  /** Warna koridor (lingkar di bawah bus). */
+  color: string;
+  /** Putaran koridor sebagai [lng, lat]. */
+  path: [number, number][];
+}
+export interface BusSample {
+  /** Posisi pada putaran koridor, 0..1. */
+  progress: number;
+  late: boolean;
+  moving: boolean;
+}
+export interface BusState {
+  lngLat: [number, number];
+  /** Tinggi model + label di layar (px), untuk offset popup. */
+  screenHeight: number;
+}
 export interface ModelHit {
-  kind: "node" | "vehicle";
+  kind: "node" | "vehicle" | "bus";
   id: string;
 }
 
@@ -86,6 +109,25 @@ const VEHICLE_PX: [number, number][] = [
   [15, 42],
   [17, 52],
 ];
+const BUS_PX: [number, number][] = [
+  [8, 14],
+  [12, 28],
+  [15, 44],
+  [17, 60],
+];
+// Lebar label kode bus (px); di bawah zoom pertama label disembunyikan.
+const BUS_LABEL_PX: [number, number][] = [
+  [11, 0],
+  [11.5, 30],
+  [15, 40],
+  [17, 46],
+];
+/** Panjang asli bus (meter): saat zoom sangat dekat bus tampil seukuran aslinya. */
+const BUS_MIN_METERS = 12;
+// Di bawah zoom ini bus hanya bergeser sepersekian piksel per frame, jadi peta
+// cukup digambar ulang tiap selang ini (ms) alih-alih tiap frame.
+const BUS_SMOOTH_ZOOM = 14.5;
+const BUS_IDLE_FRAME_MS = 90;
 /** Radius minimum area klik ambulans (px). */
 const VEHICLE_MIN_HIT_PX = 16;
 // Saat zoom sangat dekat model tidak lebih kecil dari ukuran aslinya (meter).
@@ -133,17 +175,14 @@ interface NodeRec {
   radius: number;
 }
 
-interface VehicleRec {
-  model: AmbulanceModel;
+/** Kendaraan yang melaju di sepanjang sebuah rute. */
+interface PathRec {
   lngLat: [number, number][];
   /** Titik rute dalam meter lokal [x0, y0, x1, y1, ...] dan jarak kumulatifnya. */
   xy: Float64Array;
   cum: Float64Array;
+  /** Posisi yang sedang ditampilkan, 0..1 dari panjang rute. */
   shown: number;
-  target: number;
-  /** Laju progres per detik menuju `target`. */
-  rate: number;
-  updatedAt: number;
   heading: number | null;
   segment: number;
   lng: number;
@@ -158,6 +197,19 @@ interface VehicleRec {
   height: number;
 }
 
+interface VehicleRec extends PathRec {
+  model: AmbulanceModel;
+  target: number;
+  /** Laju progres per detik menuju `target`. */
+  rate: number;
+  updatedAt: number;
+}
+
+interface BusRec extends PathRec {
+  model: BusModel;
+  routeId: string;
+}
+
 export class MapModelLayer implements CustomLayerInterface {
   readonly id = "sparta-3d-models";
   readonly type = "custom" as const;
@@ -170,8 +222,13 @@ export class MapModelLayer implements CustomLayerInterface {
   private kit = new ModelKit();
   private nodeGroup = new Group();
   private vehicleGroup = new Group();
+  private busGroup = new Group();
   private nodes = new Map<string, NodeRec>();
   private vehicles = new Map<string, VehicleRec>();
+  private buses = new Map<string, BusRec>();
+  private sampleBus: ((id: string, nowMs: number) => BusSample) | null = null;
+  private busRouteFilter: string | null = null;
+  private busTimer: ReturnType<typeof setTimeout> | null = null;
 
   private originMerc = MercatorCoordinate.fromLngLat(SCENE_ORIGIN, 0);
   private unit = this.originMerc.meterInMercatorCoordinateUnits();
@@ -196,7 +253,8 @@ export class MapModelLayer implements CustomLayerInterface {
 
   constructor() {
     this.nodeGroup.visible = false;
-    this.scene.add(this.nodeGroup, this.vehicleGroup);
+    this.busGroup.visible = false;
+    this.scene.add(this.nodeGroup, this.busGroup, this.vehicleGroup);
     const sky = new HemisphereLight("#ffffff", "#aab4c3", 2.1);
     sky.position.set(0, 0, 1);
     const sun = new DirectionalLight("#ffffff", 1.6);
@@ -218,12 +276,17 @@ export class MapModelLayer implements CustomLayerInterface {
   dispose() {
     this.map?.off("resize", this.measure);
     this.map = null;
+    if (this.busTimer !== null) clearTimeout(this.busTimer);
+    this.busTimer = null;
     this.nodes.forEach((rec) => rec.model.dispose());
     this.vehicles.forEach((rec) => rec.model.dispose());
+    this.buses.forEach((rec) => rec.model.dispose());
     this.nodes.clear();
     this.vehicles.clear();
+    this.buses.clear();
     this.nodeGroup.clear();
     this.vehicleGroup.clear();
+    this.busGroup.clear();
     this.kit.dispose();
     this.renderer?.dispose();
     this.renderer = null;
@@ -354,6 +417,64 @@ export class MapModelLayer implements CustomLayerInterface {
     this.map?.triggerRepaint();
   }
 
+  /**
+   * Armada bus. Posisinya tidak dikirim lewat polling: `sample` dipanggil tiap
+   * frame dengan waktu saat itu, jadi bus melaju mulus tanpa interpolasi.
+   */
+  setBuses(list: ModelBus[], sample: (id: string, nowMs: number) => BusSample) {
+    this.sampleBus = sample;
+    this.buses.forEach((rec) => rec.model.dispose());
+    this.buses.clear();
+    this.busGroup.clear();
+    for (const bus of list) {
+      if (bus.path.length < 2) continue;
+      const model = new BusModel(this.kit, bus.code, bus.color);
+      this.busGroup.add(model.root);
+      const rec: BusRec = {
+        model,
+        routeId: bus.routeId,
+        lngLat: bus.path,
+        xy: new Float64Array(0),
+        cum: new Float64Array(0),
+        shown: 0,
+        heading: null,
+        segment: 0,
+        lng: bus.path[0][0],
+        lat: bus.path[0][1],
+        x: 0,
+        y: 0,
+        z: 0,
+        onScreen: false,
+        centerX: 0,
+        centerY: 0,
+        radius: 0,
+        height: 0,
+      };
+      this.setPath(rec, bus.path);
+      this.buses.set(bus.id, rec);
+    }
+    this.elevatedAt = 0;
+    this.map?.triggerRepaint();
+  }
+  setBusesVisible(visible: boolean) {
+    this.busGroup.visible = visible;
+    this.map?.triggerRepaint();
+  }
+  /** Hanya tampilkan bus koridor ini (null = semua koridor). */
+  setBusRouteFilter(routeId: string | null) {
+    this.busRouteFilter = routeId;
+    this.map?.triggerRepaint();
+  }
+
+  /** Posisi bus saat ini (dihitung ulang, jadi tetap benar saat layer tersembunyi). */
+  getBusState(id: string): BusState | null {
+    const rec = this.buses.get(id);
+    if (!rec || !this.sampleBus) return null;
+    rec.shown = this.sampleBus(id, Date.now()).progress;
+    this.placeOnPath(rec);
+    return { lngLat: [rec.lng, rec.lat], screenHeight: rec.height };
+  }
+
   getVehicleState(id: string): VehicleState | null {
     const rec = this.vehicles.get(id);
     if (!rec) return null;
@@ -379,6 +500,13 @@ export class MapModelLayer implements CustomLayerInterface {
         if (!rec.onScreen) continue;
         const d = Math.hypot(point.x - rec.centerX, point.y - rec.centerY);
         if (d <= rec.radius) return { kind: "vehicle", id };
+      }
+    }
+    if (this.busGroup.visible) {
+      for (const [id, rec] of this.buses) {
+        if (!rec.onScreen) continue;
+        const d = Math.hypot(point.x - rec.centerX, point.y - rec.centerY);
+        if (d <= rec.radius) return { kind: "bus", id };
       }
     }
     if (!this.nodeGroup.visible) return null;
@@ -421,7 +549,7 @@ export class MapModelLayer implements CustomLayerInterface {
     ];
   }
 
-  private setPath(rec: VehicleRec, path: [number, number][]) {
+  private setPath(rec: PathRec, path: [number, number][]) {
     rec.lngLat = path;
     rec.xy = new Float64Array(path.length * 2);
     rec.cum = new Float64Array(path.length);
@@ -438,7 +566,7 @@ export class MapModelLayer implements CustomLayerInterface {
   }
 
   /** Posisi kendaraan pada `shown` x panjang rute. Mengembalikan arah ruasnya. */
-  private placeOnPath(rec: VehicleRec): number | null {
+  private placeOnPath(rec: PathRec): number | null {
     const { xy, cum, lngLat } = rec;
     const last = cum.length - 1;
     const total = cum[last];
@@ -497,6 +625,23 @@ export class MapModelLayer implements CustomLayerInterface {
     this.vehicles.forEach((rec) => {
       rec.z = map.queryTerrainElevation([rec.lng, rec.lat]) ?? 0;
     });
+    if (this.busGroup.visible) {
+      this.buses.forEach((rec) => {
+        rec.z = map.queryTerrainElevation([rec.lng, rec.lat]) ?? 0;
+      });
+    }
+  }
+
+  /** Arah hadap mengikuti ruas rute, diputar halus saat berbelok. */
+  private turnToward(rec: PathRec, pathHeading: number | null, dt: number) {
+    if (pathHeading === null) return;
+    if (rec.heading === null) {
+      rec.heading = pathHeading;
+      return;
+    }
+    let diff = pathHeading - rec.heading;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    rec.heading += diff * (1 - Math.exp(-dt * 8));
   }
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -517,7 +662,9 @@ export class MapModelLayer implements CustomLayerInterface {
 
     const showNodes = this.nodeGroup.visible && this.nodes.size > 0;
     const showVehicles = this.vehicleGroup.visible && this.vehicles.size > 0;
-    if (!showNodes && !showVehicles) return;
+    const showBuses =
+      this.busGroup.visible && this.buses.size > 0 && this.sampleBus !== null;
+    if (!showNodes && !showVehicles && !showBuses) return;
 
     if (now - this.elevatedAt > ELEVATION_REFRESH_MS) {
       this.elevatedAt = now;
@@ -597,16 +744,7 @@ export class MapModelLayer implements CustomLayerInterface {
     if (showVehicles) {
       const px = sizeAtZoom(VEHICLE_PX, zoom);
       this.vehicles.forEach((rec) => {
-        const pathHeading = this.placeOnPath(rec);
-        if (pathHeading !== null) {
-          if (rec.heading === null) {
-            rec.heading = pathHeading;
-          } else {
-            let diff = pathHeading - rec.heading;
-            diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-            rec.heading += diff * (1 - Math.exp(-dt * 8));
-          }
-        }
+        this.turnToward(rec, this.placeOnPath(rec), dt);
         const ppm = this.pixelsPerMeter(rec.x, rec.y, rec.z);
         rec.onScreen = ppm > 0;
         rec.model.root.visible = rec.onScreen;
@@ -632,6 +770,51 @@ export class MapModelLayer implements CustomLayerInterface {
       });
     }
 
+    if (showBuses) {
+      const px = sizeAtZoom(BUS_PX, zoom);
+      const labelPx = sizeAtZoom(BUS_LABEL_PX, zoom);
+      const nowMs = Date.now();
+      this.buses.forEach((rec, id) => {
+        const hidden =
+          this.busRouteFilter !== null && rec.routeId !== this.busRouteFilter;
+        rec.onScreen = false;
+        rec.model.root.visible = false;
+        if (hidden) return;
+
+        const sample = this.sampleBus!(id, nowMs);
+        rec.shown = sample.progress;
+        this.turnToward(rec, this.placeOnPath(rec), dt);
+        const ppm = this.pixelsPerMeter(rec.x, rec.y, rec.z);
+        if (ppm <= 0) return;
+        rec.onScreen = true;
+        rec.model.root.visible = true;
+
+        const scale = Math.max(px / Math.sqrt(ppm * centerPpm), BUS_MIN_METERS);
+        rec.model.root.position.set(rec.x, rec.y, rec.z);
+        rec.model.root.scale.setScalar(scale);
+        rec.model.setHeading(rec.heading ?? 0);
+        rec.model.setLate(sample.late);
+        rec.model.label.quaternion.copy(this.billboard);
+        // Label berukuran tetap di layar, berapa pun skala busnya.
+        rec.model.setLabelWidth(labelPx / (scale * ppm));
+        rec.model.animate(time, sample.moving);
+
+        this.project(rec.x, rec.y, rec.z, this.p0);
+        const baseY = this.p0.y;
+        this.project(
+          rec.x,
+          rec.y,
+          rec.z + rec.model.label.position.z * scale,
+          this.p0,
+        );
+        rec.height = Math.max(0, baseY - this.p0.y) + labelPx * 0.2;
+        this.project(rec.x, rec.y, rec.z + (BUS_TOP / 2) * scale, this.p0);
+        rec.centerX = this.p0.x;
+        rec.centerY = this.p0.y;
+        rec.radius = Math.max(0.5 * scale * ppm, VEHICLE_MIN_HIT_PX);
+      });
+    }
+
     // Renderer dibuat di dalam render() supaya perubahan state GL-nya ikut
     // di-reset MapLibre setelah layer kustom selesai digambar.
     if (!this.renderer) {
@@ -650,6 +833,13 @@ export class MapModelLayer implements CustomLayerInterface {
     this.renderer.clearDepth();
     this.renderer.render(this.scene, this.camera);
 
-    if (animating) map.triggerRepaint();
+    if (animating || (showBuses && zoom >= BUS_SMOOTH_ZOOM)) {
+      map.triggerRepaint();
+    } else if (showBuses && this.busTimer === null) {
+      this.busTimer = setTimeout(() => {
+        this.busTimer = null;
+        this.map?.triggerRepaint();
+      }, BUS_IDLE_FRAME_MS);
+    }
   }
 }

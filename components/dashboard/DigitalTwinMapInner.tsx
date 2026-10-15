@@ -7,6 +7,8 @@ import {
   Marker,
   Popup,
   NavigationControl,
+  type ExpressionSpecification,
+  type FilterSpecification,
   type GeoJSONSource,
   type PaddingOptions,
   type MapMouseEvent,
@@ -18,6 +20,7 @@ import {
   AlertTriangle,
   CalendarDays,
   Ambulance as AmbulanceIcon,
+  BusFront,
   TrendingUp,
   TrendingDown,
   MoveRight,
@@ -31,7 +34,25 @@ import { NodePopupCard } from "./NodePopupCard";
 import { VehiclePopupCard } from "./VehiclePopupCard";
 import { detectJunctionFromMap } from "@/components/sim/junctionFromMap";
 import type { DetectedArm } from "@/lib/sim/types";
-import { MapModelLayer } from "./map3d/MapModelLayer";
+import { MapModelLayer, type ModelHit } from "./map3d/MapModelLayer";
+import { BusPopupCard, BusStopPopupCard } from "./BusPopupCard";
+import {
+  BUSES,
+  BUS_ROUTES,
+  BUS_STOP_GROUPS,
+  activeSignalAdjustments,
+  busSnapshot,
+  formatEta,
+  getBus,
+  getBusRoute,
+  getBusStopGroup,
+  stopArrivals,
+  upcomingArrivals,
+} from "@/lib/simulation/suroboyoBus";
+import {
+  projectLevel,
+  projectionConfidence,
+} from "@/lib/simulation/trafficModel";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface TrafficNode {
@@ -71,11 +92,23 @@ interface MapInnerProps {
   focusPadding?: Partial<PaddingOptions>;
   /** Geser peta ke kendaraan ini. Ganti `seq` untuk memicu ulang pada id yang sama. */
   focusVehicle?: { id: string; seq: number } | null;
+  /**
+   * Mode pelacakan Suroboyo Bus: overlay bus dinyalakan, garis koridor
+   * dipertebal, dan simpang bersinyal di koridor ikut ditampilkan. `routeId`
+   * membatasi tampilan ke satu koridor (null = semua).
+   */
+  busView?: { routeId: string | null } | null;
+  /** Geser peta ke bus ini lalu ikuti. Ganti `seq` untuk memicu ulang. */
+  focusBus?: { id: string; seq: number } | null;
+  onBusSelect?: (id: string) => void;
+  /** Tampilkan pilihan interval Now / 1–6 jam di bawah peta (mode Live). */
+  showHorizonBar?: boolean;
 }
 interface OverlayState {
   cctv: boolean;
   lights: boolean;
   vehicles: boolean;
+  buses: boolean;
   crowd: boolean;
   events: boolean;
 }
@@ -385,6 +418,134 @@ function pointFeature(
   };
 }
 
+// ─── Suroboyo Bus: koridor, halte, dan simpang bersinyal ────────────────────
+const BUS_ROUTE_FC = {
+  type: "FeatureCollection" as const,
+  features: BUS_ROUTES.flatMap((route) =>
+    route.directions.map((direction) =>
+      lineFeature(direction.path, { routeId: route.id, color: route.color }),
+    ),
+  ),
+};
+// Halte yang dipakai lebih dari satu koridor diberi warna netral.
+const SHARED_STOP_COLOR = "#111827";
+const BUS_STOP_FC = {
+  type: "FeatureCollection" as const,
+  features: BUS_STOP_GROUPS.map((group) =>
+    pointFeature(group.lngLat, {
+      key: group.key,
+      name: group.name,
+      routes: group.routeIds.join(","),
+      color:
+        group.routeIds.length === 1
+          ? (getBusRoute(group.routeIds[0])?.color ?? SHARED_STOP_COLOR)
+          : SHARED_STOP_COLOR,
+    }),
+  ),
+};
+const BUS_LAYER_IDS = [
+  "bus-route-casing",
+  "bus-route-line",
+  "bus-stops-layer",
+  "bus-stops-label",
+];
+const BUS_SIGNAL_LAYER_IDS = ["bus-signals-layer", "bus-signals-label"];
+// Lebar garis koridor (px); dipertebal di mode pelacakan.
+const BUS_ROUTE_WIDTH = { casing: 5, line: 2.6 };
+const BUS_TRACKING_WIDTH = { casing: 8, line: 4.4 };
+
+/** Simpang bersinyal di semua koridor; yang sedang diberi prioritas diberi label. */
+function busSignalFeatures(nowMs: number): Feature[] {
+  const adjusted = new Map(
+    activeSignalAdjustments(nowMs).map((a) => [a.key, a]),
+  );
+  return BUS_ROUTES.flatMap((route) =>
+    route.events.flatMap((event, index) => {
+      if (event.kind !== "signal") return [];
+      const adjustment = adjusted.get(`${route.id}:${index}`);
+      return [
+        pointFeature(event.lngLat, {
+          routeId: route.id,
+          adjusted: !!adjustment,
+          label: adjustment
+            ? `Hijau +${adjustment.extendSec} dtk · ${adjustment.busCode}`
+            : "",
+        }),
+      ];
+    }),
+  );
+}
+
+function popupElement(html: string, onClose: () => void): HTMLElement {
+  const el = document.createElement("div");
+  el.innerHTML = html;
+  el.querySelector('[data-action="close"]')?.addEventListener("click", onClose);
+  return el;
+}
+function busPopupContent(
+  id: string,
+  onClose: () => void,
+  animated = false,
+): HTMLElement | null {
+  const bus = getBus(id);
+  if (!bus) return null;
+  const now = Date.now();
+  const snapshot = busSnapshot(bus, now);
+  return popupElement(
+    renderToString(
+      <BusPopupCard
+        code={bus.code}
+        routeId={bus.route.id}
+        routeColor={bus.route.color}
+        destination={snapshot.direction.to}
+        late={snapshot.late}
+        scheduleLabel={
+          snapshot.late
+            ? `+${Math.round(snapshot.delaySec / 10) * 10} dtk`
+            : "Tepat"
+        }
+        speedKmh={snapshot.speedKmh}
+        dwellingAt={snapshot.dwellingAt}
+        stops={upcomingArrivals(bus, now, 3, "stop").map((arrival) => ({
+          name: arrival.event.name,
+          eta: formatEta(arrival.etaSec),
+        }))}
+        animated={animated}
+      />,
+    ),
+    onClose,
+  );
+}
+function stopPopupContent(
+  key: string,
+  onClose: () => void,
+  animated = false,
+): HTMLElement | null {
+  const group = getBusStopGroup(key);
+  if (!group) return null;
+  return popupElement(
+    renderToString(
+      <BusStopPopupCard
+        name={group.name}
+        routes={group.routeIds.map((id) => ({
+          id,
+          color: getBusRoute(id)?.color ?? SHARED_STOP_COLOR,
+        }))}
+        arrivals={stopArrivals(group, Date.now(), 4).map((arrival) => ({
+          code: arrival.bus.code,
+          routeId: arrival.bus.route.id,
+          routeColor: arrival.bus.route.color,
+          destination: arrival.to,
+          eta: formatEta(arrival.etaSec),
+          late: arrival.late,
+        }))}
+        animated={animated}
+      />,
+    ),
+    onClose,
+  );
+}
+
 // ─── Marker HTML builders ───────────────────────────────────────────────────
 const cctvIconHTML = () =>
   `<div style="background:#1e293b;border:2px solid white;border-radius:6px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.4);pointer-events:auto">${renderToString(<Video size={14} color="white" />)}</div>`;
@@ -453,11 +614,15 @@ function nodePopupHTML(
   level: number,
   tab: string,
   forecastTime: number,
+  horizon = 0,
 ): string {
   const conf = FORECAST_CONF[forecastTime] || FORECAST_CONF[0];
+  const projecting = tab === "live" && horizon > 0;
   const modeLabel =
     tab === "live"
-      ? "Status Live"
+      ? projecting
+        ? `Proyeksi +${horizon} Jam`
+        : "Status Live"
       : tab === "prediction"
         ? `Prediksi ${conf.label}`
         : "Mode Simulasi";
@@ -481,7 +646,9 @@ function nodePopupHTML(
       statusColor={isKritis ? PIN_STATUS_COLORS.red : PIN_STATUS_COLORS[cls]}
       colorForLevel={getTrafficColor}
       forecast={
-        tab === "live"
+        projecting
+          ? { label: `+${horizon} Jam`, value: level }
+          : tab === "live"
           ? undefined
           : {
               label: tab === "prediction" ? conf.label : "+25% Vol",
@@ -540,6 +707,11 @@ function LiveOverlayControls({
       key: "vehicles",
       label: "Vanguard",
       icon: renderToString(<AmbulanceIcon size={14} />),
+    },
+    {
+      key: "buses",
+      label: "Suroboyo Bus",
+      icon: renderToString(<BusFront size={14} />),
     },
     {
       key: "crowd",
@@ -648,6 +820,51 @@ function ForecastTimeline({
             </button>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+const LIVE_HORIZONS = [0, 1, 2, 3, 4, 5, 6];
+
+// Pilihan interval di mode Live: Now = data realtime, selebihnya proyeksi.
+function LiveHorizonBar({
+  horizon,
+  setHorizon,
+}: {
+  horizon: number;
+  setHorizon: (h: number) => void;
+}) {
+  return (
+    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[900] max-w-[calc(100%-1.5rem)]">
+      <div
+        role="group"
+        aria-label="Interval kemacetan"
+        className="flex items-center gap-1 rounded-full border border-white/70 bg-white/90 p-1 shadow-lg backdrop-blur-md"
+      >
+        {horizon > 0 && (
+          <span className="hidden sm:inline px-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
+            Proyeksi · {projectionConfidence(horizon)}%
+          </span>
+        )}
+        {LIVE_HORIZONS.map((h) => {
+          const active = horizon === h;
+          return (
+            <button
+              key={h}
+              type="button"
+              onClick={() => setHorizon(h)}
+              aria-pressed={active}
+              className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F1610] ${
+                active
+                  ? "bg-[#8F1610] text-white"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              {h === 0 ? "Now" : `${h} jam`}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -955,6 +1172,10 @@ export default function DigitalTwinMapInner({
   topLeftSlot,
   focusPadding,
   focusVehicle,
+  busView,
+  focusBus,
+  onBusSelect,
+  showHorizonBar = false,
 }: MapInnerProps) {
   // Selama UI Prediction disembunyikan, peta selalu berjalan di mode Live.
   const activeTab =
@@ -967,6 +1188,10 @@ export default function DigitalTwinMapInner({
   const popupRef = useRef<Popup | null>(null);
   const modelLayerRef = useRef<MapModelLayer | null>(null);
   const vehiclePopupRef = useRef<{ id: string; popup: Popup } | null>(null);
+  const busPopupRef = useRef<{ id: string; popup: Popup } | null>(null);
+  const stopPopupRef = useRef<{ key: string; popup: Popup } | null>(null);
+  // Bus yang sedang diikuti kamera; `from` = saat animasi fokus awal selesai.
+  const followBusRef = useRef<{ id: string; from: number } | null>(null);
   const nodesRef = useRef(nodes);
   useEffect(() => {
     nodesRef.current = nodes;
@@ -983,11 +1208,24 @@ export default function DigitalTwinMapInner({
     cctv: false,
     lights: false,
     vehicles: true,
+    buses: true,
     crowd: false,
     events: false,
     ...initialOverlays,
   });
+  // Masuk mode pelacakan bus menyalakan overlay-nya; setelah itu tombol overlay
+  // tetap bisa mematikannya.
+  const busTracking = !!busView;
+  const busRouteId = busView?.routeId ?? null;
+  const [wasBusTracking, setWasBusTracking] = useState(busTracking);
+  if (busTracking !== wasBusTracking) {
+    setWasBusTracking(busTracking);
+    if (busTracking && !overlays.buses) setOverlays({ ...overlays, buses: true });
+  }
+  const busesVisible = activeTab === "live" && overlays.buses;
   const [forecastTime, setForecastTime] = useState(0);
+  // Interval proyeksi mode Live dalam jam (0 = realtime).
+  const [horizon, setHorizon] = useState(0);
   const [displayLevels, setDisplayLevels] = useState<Record<string, number>>(
     {},
   );
@@ -1054,14 +1292,14 @@ export default function DigitalTwinMapInner({
 
   const getNodeDisplayLevel = useCallback(
     (node: TrafficNode): number => {
-      if (activeTab === "live") return node.currentLevel;
+      if (activeTab === "live") return projectLevel(node.currentLevel, horizon);
       if (activeTab === "prediction")
         return displayLevels[node.id] ?? node.currentLevel;
       if (activeTab === "simulation")
         return Math.min(100, node.currentLevel * 1.25);
       return node.currentLevel;
     },
-    [activeTab, displayLevels],
+    [activeTab, displayLevels, horizon],
   );
 
   const loadRoadSegments = useCallback(async function (
@@ -1155,8 +1393,11 @@ export default function DigitalTwinMapInner({
     onNodeSelect,
     onApprove,
     forecastTime,
+    horizon,
     getNodeDisplayLevel,
     setSelectedNode,
+    onBusSelect,
+    busTracking,
   });
   useEffect(() => {
     latestRef.current = {
@@ -1166,8 +1407,11 @@ export default function DigitalTwinMapInner({
       onNodeSelect,
       onApprove,
       forecastTime,
+      horizon,
       getNodeDisplayLevel,
       setSelectedNode,
+      onBusSelect,
+      busTracking,
     };
   }, [
     nodes,
@@ -1176,8 +1420,11 @@ export default function DigitalTwinMapInner({
     onNodeSelect,
     onApprove,
     forecastTime,
+    horizon,
     getNodeDisplayLevel,
     setSelectedNode,
+    onBusSelect,
+    busTracking,
   ]);
 
   const openNodePopup = (node: TrafficNode, lngLat: [number, number]) => {
@@ -1186,6 +1433,7 @@ export default function DigitalTwinMapInner({
     const {
       activeTab: tab,
       forecastTime,
+      horizon,
       onApprove,
       onNodeSelect,
     } = latestRef.current;
@@ -1193,7 +1441,7 @@ export default function DigitalTwinMapInner({
 
     popupRef.current?.remove();
     const el = document.createElement("div");
-    el.innerHTML = nodePopupHTML(node, level, tab, forecastTime);
+    el.innerHTML = nodePopupHTML(node, level, tab, forecastTime, horizon);
 
     el.querySelector('[data-action="approve"]')?.addEventListener(
       "click",
@@ -1281,6 +1529,54 @@ export default function DigitalTwinMapInner({
     vehiclePopupRef.current = { id, popup };
   };
 
+  // Popup Suroboyo Bus: klik membuka, klik lagi pada bus yang sama menutup.
+  const toggleBusPopup = (id: string) => {
+    const map = mapRef.current;
+    const open = busPopupRef.current;
+    open?.popup.remove();
+    stopPopupRef.current?.popup.remove();
+    if (!map || open?.id === id) return;
+    const state = modelLayerRef.current?.getBusState(id);
+    if (!state) return;
+
+    const popup = new Popup({
+      offset: Math.round(state.screenHeight) + 8,
+      closeButton: false,
+      maxWidth: "none",
+      className: "sparta-node-popup",
+    }).setLngLat(state.lngLat);
+    const content = busPopupContent(id, () => popup.remove(), true);
+    if (!content) return;
+    popup.setDOMContent(content).addTo(map);
+    popup.on("close", () => {
+      if (busPopupRef.current?.popup === popup) busPopupRef.current = null;
+    });
+    busPopupRef.current = { id, popup };
+  };
+
+  // Popup halte: papan kedatangan bus berikutnya.
+  const openStopPopup = (key: string) => {
+    const map = mapRef.current;
+    const group = getBusStopGroup(key);
+    busPopupRef.current?.popup.remove();
+    stopPopupRef.current?.popup.remove();
+    if (!map || !group) return;
+
+    const popup = new Popup({
+      offset: 12,
+      closeButton: false,
+      maxWidth: "none",
+      className: "sparta-node-popup",
+    }).setLngLat(group.lngLat);
+    const content = stopPopupContent(key, () => popup.remove(), true);
+    if (!content) return;
+    popup.setDOMContent(content).addTo(map);
+    popup.on("close", () => {
+      if (stopPopupRef.current?.popup === popup) stopPopupRef.current = null;
+    });
+    stopPopupRef.current = { key, popup };
+  };
+
   // ─── Map initialization ──────────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -1334,6 +1630,12 @@ export default function DigitalTwinMapInner({
         map.addSource("nodes", { type: "geojson", data: EMPTY_FC });
       if (!map.getSource("vehicle-routes"))
         map.addSource("vehicle-routes", { type: "geojson", data: EMPTY_FC });
+      if (!map.getSource("bus-routes"))
+        map.addSource("bus-routes", { type: "geojson", data: BUS_ROUTE_FC });
+      if (!map.getSource("bus-stops"))
+        map.addSource("bus-stops", { type: "geojson", data: BUS_STOP_FC });
+      if (!map.getSource("bus-signals"))
+        map.addSource("bus-signals", { type: "geojson", data: EMPTY_FC });
       if (!map.getSource("terrain")) {
         map.addSource("terrain", {
           type: "raster-dem",
@@ -1414,6 +1716,32 @@ export default function DigitalTwinMapInner({
           },
         }, labelLayerId);
       }
+      // Koridor Suroboyo Bus di atas garis kepadatan. Semua layer bus mulai
+      // tersembunyi; efek overlay yang menampilkannya.
+      if (!map.getLayer("bus-route-casing")) {
+        map.addLayer({
+          id: "bus-route-casing",
+          type: "line",
+          source: "bus-routes",
+          layout: { "line-join": "round", "line-cap": "round", visibility: "none" },
+          paint: {
+            "line-color": "#ffffff",
+            "line-width": BUS_ROUTE_WIDTH.casing,
+            "line-opacity": 0.75,
+          },
+        }, labelLayerId);
+        map.addLayer({
+          id: "bus-route-line",
+          type: "line",
+          source: "bus-routes",
+          layout: { "line-join": "round", "line-cap": "round", visibility: "none" },
+          paint: {
+            "line-color": ["get", "color"],
+            "line-width": BUS_ROUTE_WIDTH.line,
+            "line-opacity": 0.85,
+          },
+        }, labelLayerId);
+      }
       if (!map.getLayer("veh-bg")) {
         map.addLayer({
           id: "veh-bg",
@@ -1484,6 +1812,75 @@ export default function DigitalTwinMapInner({
             "circle-opacity": 0.25,
             "circle-stroke-color": "#ef4444",
             "circle-stroke-width": 3,
+          },
+        });
+      }
+      if (!map.getLayer("bus-stops-layer")) {
+        map.addLayer({
+          id: "bus-stops-layer",
+          type: "circle",
+          source: "bus-stops",
+          minzoom: 13,
+          layout: { visibility: "none" },
+          paint: {
+            "circle-color": "#ffffff",
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 13, 2.6, 16, 5.5],
+            "circle-stroke-color": ["get", "color"],
+            "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 13, 1.4, 16, 2.4],
+          },
+        });
+        map.addLayer({
+          id: "bus-stops-label",
+          type: "symbol",
+          source: "bus-stops",
+          minzoom: 14.6,
+          layout: {
+            visibility: "none",
+            "text-field": ["get", "name"],
+            "text-font": MAP_LABEL_FONT,
+            "text-size": 10.5,
+            "text-anchor": "top",
+            "text-offset": [0, 0.7],
+          },
+          paint: {
+            "text-color": "#1e293b",
+            "text-halo-color": "#ffffff",
+            "text-halo-width": 1.4,
+          },
+        });
+        map.addLayer({
+          id: "bus-signals-layer",
+          type: "circle",
+          source: "bus-signals",
+          minzoom: 12,
+          layout: { visibility: "none" },
+          paint: {
+            "circle-color": ["case", ["get", "adjusted"], "#f59e0b", "#64748b"],
+            "circle-radius": ["case", ["get", "adjusted"], 6.5, 3.5],
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 1.6,
+          },
+        });
+        map.addLayer({
+          id: "bus-signals-label",
+          type: "symbol",
+          source: "bus-signals",
+          minzoom: 13.5,
+          filter: ["==", ["get", "adjusted"], true],
+          layout: {
+            visibility: "none",
+            "text-field": ["get", "label"],
+            "text-font": MAP_LABEL_FONT,
+            "text-size": 11,
+            "text-anchor": "left",
+            "text-offset": [0.9, 0],
+            "text-allow-overlap": true,
+            "text-ignore-placement": true,
+          },
+          paint: {
+            "text-color": "#92400e",
+            "text-halo-color": "#ffffff",
+            "text-halo-width": 1.6,
           },
         });
       }
@@ -1581,10 +1978,21 @@ export default function DigitalTwinMapInner({
         });
       }
 
-      // Marker 3D: lampu lalu lintas di persimpangan dan ambulans di rutenya.
+      // Marker 3D: lampu lalu lintas di persimpangan, ambulans di rutenya, dan
+      // armada Suroboyo Bus di koridornya.
       const modelLayer = new MapModelLayer();
       map.addLayer(modelLayer);
       modelLayerRef.current = modelLayer;
+      modelLayer.setBuses(
+        BUSES.map((bus) => ({
+          id: bus.id,
+          code: bus.code,
+          routeId: bus.route.id,
+          color: bus.route.color,
+          path: bus.route.loopPath,
+        })),
+        (id, nowMs) => busSnapshot(getBus(id)!, nowMs),
+      );
 
       // Peta miring -> persimpangan digambar sebagai model 3D; peta datar
       // (tampilan 2D) -> kembali ke pin 2D.
@@ -1599,18 +2007,48 @@ export default function DigitalTwinMapInner({
       map.on("pitch", syncNodeMarkerMode);
       syncNodeMarkerMode();
 
-      // Marker di bawah kursor: model 3D dulu, lalu pin 2D.
-      const markerAt = (e: MapMouseEvent) =>
+      // Marker di bawah kursor: model 3D dulu, lalu pin 2D, lalu halte bus.
+      const markerAt = (
+        e: MapMouseEvent,
+      ): ModelHit | { kind: "stop"; id: string } | undefined =>
         modelLayer.pick(e.point) ??
         map
           .queryRenderedFeatures(e.point, { layers: ["nodes-layer"] })
           .slice(0, 1)
-          .map((f) => ({ kind: "node" as const, id: String(f.properties.id) }))[0];
+          .map((f) => ({ kind: "node" as const, id: String(f.properties.id) }))[0] ??
+        map
+          .queryRenderedFeatures(
+            [
+              [e.point.x - 5, e.point.y - 5],
+              [e.point.x + 5, e.point.y + 5],
+            ],
+            { layers: ["bus-stops-layer"] },
+          )
+          .slice(0, 1)
+          .map((f) => ({ kind: "stop" as const, id: String(f.properties.key) }))[0];
+
+      // Kamera berhenti mengikuti bus begitu pengguna menggerakkan peta sendiri.
+      (["dragstart", "zoomstart", "rotatestart", "pitchstart"] as const).forEach(
+        (type) =>
+          map.on(type, (e) => {
+            if (e.originalEvent) followBusRef.current = null;
+          }),
+      );
 
       map.on("click", (e: MapMouseEvent) => {
         const hit = markerAt(e);
         if (hit?.kind === "vehicle") {
           toggleVehiclePopup(hit.id);
+          return;
+        }
+        if (hit?.kind === "bus") {
+          // Di mode pelacakan detail bus tampil di panel halaman, bukan popup.
+          if (!latestRef.current.busTracking) toggleBusPopup(hit.id);
+          latestRef.current.onBusSelect?.(hit.id);
+          return;
+        }
+        if (hit?.kind === "stop") {
+          openStopPopup(hit.id);
           return;
         }
         const node = latestRef.current.nodes.find((n) => n.id === hit?.id);
@@ -1653,6 +2091,8 @@ export default function DigitalTwinMapInner({
       markers.clear();
       popupRef.current?.remove();
       vehiclePopupRef.current?.popup.remove();
+      busPopupRef.current?.popup.remove();
+      stopPopupRef.current?.popup.remove();
       modelLayerRef.current?.dispose();
       modelLayerRef.current = null;
       map.remove();
@@ -1688,7 +2128,9 @@ export default function DigitalTwinMapInner({
         const pred =
           activeTab === "prediction"
             ? Math.min(100, s.avgLevel * mult)
-            : s.avgLevel;
+            : activeTab === "live"
+              ? projectLevel(s.avgLevel, horizon)
+              : s.avgLevel;
         features.push(
           lineFeature(
             s.geometry.map(([la, ln]): [number, number] => [ln, la]),
@@ -1718,6 +2160,7 @@ export default function DigitalTwinMapInner({
     nodes,
     activeTab,
     forecastTime,
+    horizon,
     displayLevels,
     mapReady,
     getNodeDisplayLevel,
@@ -1897,6 +2340,153 @@ export default function DigitalTwinMapInner({
     if (!visible) vehiclePopupRef.current?.popup.remove();
   }, [overlays.vehicles, activeTab, mapReady]);
 
+  // Suroboyo Bus: visibilitas overlay, koridor yang dipilih, dan mode pelacakan.
+  useEffect(() => {
+    const map = mapRef.current;
+    const layer = modelLayerRef.current;
+    if (!map || !mapReady || !layer) return;
+    const show = (visible: boolean) => (visible ? "visible" : "none");
+    BUS_LAYER_IDS.forEach((id) =>
+      map.setLayoutProperty(id, "visibility", show(busesVisible)),
+    );
+    BUS_SIGNAL_LAYER_IDS.forEach((id) =>
+      map.setLayoutProperty(id, "visibility", show(busesVisible && busTracking)),
+    );
+
+    const width = busTracking ? BUS_TRACKING_WIDTH : BUS_ROUTE_WIDTH;
+    const onRoute: ExpressionSpecification = ["==", ["get", "routeId"], busRouteId];
+    map.setPaintProperty("bus-route-casing", "line-width", width.casing);
+    map.setPaintProperty("bus-route-line", "line-width", width.line);
+    // Koridor lain diredupkan saat satu koridor dipilih.
+    map.setPaintProperty(
+      "bus-route-casing",
+      "line-opacity",
+      busRouteId ? ["case", onRoute, 0.75, 0] : 0.75,
+    );
+    map.setPaintProperty(
+      "bus-route-line",
+      "line-opacity",
+      busRouteId ? ["case", onRoute, 0.9, 0.2] : 0.85,
+    );
+    const stopFilter = (
+      busRouteId ? ["in", busRouteId, ["get", "routes"]] : null
+    ) as FilterSpecification | null;
+    map.setFilter("bus-stops-layer", stopFilter);
+    map.setFilter("bus-stops-label", stopFilter);
+    const adjusted: ExpressionSpecification = ["==", ["get", "adjusted"], true];
+    map.setFilter(
+      "bus-signals-layer",
+      (busRouteId ? onRoute : null) as FilterSpecification | null,
+    );
+    map.setFilter(
+      "bus-signals-label",
+      (busRouteId ? ["all", adjusted, onRoute] : adjusted) as FilterSpecification,
+    );
+
+    layer.setBusesVisible(busesVisible);
+    layer.setBusRouteFilter(busRouteId);
+    if (!busesVisible) {
+      busPopupRef.current?.popup.remove();
+      stopPopupRef.current?.popup.remove();
+      followBusRef.current = null;
+    }
+  }, [busesVisible, busTracking, busRouteId, mapReady]);
+
+  // Memilih satu koridor di mode pelacakan menampilkan seluruh koridor itu.
+  useEffect(() => {
+    const map = mapRef.current;
+    const route = busRouteId ? getBusRoute(busRouteId) : undefined;
+    if (!map || !mapReady || !busTracking || !route) return;
+    const lngs = route.loopPath.map((p) => p[0]);
+    const lats = route.loopPath.map((p) => p[1]);
+    followBusRef.current = null;
+    map.fitBounds(
+      [
+        [Math.min(...lngs), Math.min(...lats)],
+        [Math.max(...lngs), Math.max(...lats)],
+      ],
+      {
+        padding: {
+          ...DEFAULT_FOCUS_PADDING,
+          ...focusPaddingRef.current,
+          top: 90,
+          bottom: 60,
+        },
+        bearing: map.getBearing(),
+        pitch: map.getPitch(),
+        duration: 900,
+      },
+    );
+  }, [busRouteId, busTracking, mapReady]);
+
+  // Suroboyo Bus: popup dan kamera mengikuti bus; isi popup dan status
+  // prioritas sinyal diperbarui tiap detik.
+  useEffect(() => {
+    const map = mapRef.current;
+    const layer = modelLayerRef.current;
+    if (!map || !mapReady || !layer || !busesVisible) return;
+    const signals = map.getSource("bus-signals") as GeoJSONSource | undefined;
+
+    let tick = 0;
+    const update = () => {
+      const now = Date.now();
+      const busPopup = busPopupRef.current;
+      const popupState = busPopup && layer.getBusState(busPopup.id);
+      if (busPopup && popupState) busPopup.popup.setLngLat(popupState.lngLat);
+
+      const follow = followBusRef.current;
+      const followState =
+        follow && now >= follow.from && layer.getBusState(follow.id);
+      if (followState) {
+        map.easeTo({
+          center: followState.lngLat,
+          padding: { ...DEFAULT_FOCUS_PADDING, ...focusPaddingRef.current },
+          duration: 250,
+          easing: (t) => t,
+        });
+      }
+
+      if (tick++ % 4 !== 0) return;
+      if (busPopup) {
+        const content = busPopupContent(busPopup.id, () => busPopup.popup.remove());
+        if (content) busPopup.popup.setDOMContent(content);
+      }
+      const stopPopup = stopPopupRef.current;
+      if (stopPopup) {
+        const content = stopPopupContent(stopPopup.key, () => stopPopup.popup.remove());
+        if (content) stopPopup.popup.setDOMContent(content);
+      }
+      if (busTracking) {
+        signals?.setData({
+          type: "FeatureCollection",
+          features: busSignalFeatures(now),
+        });
+      }
+    };
+    update();
+    const timer = setInterval(update, 250);
+    return () => clearInterval(timer);
+  }, [busesVisible, busTracking, mapReady]);
+
+  // Geser peta ke bus yang dipilih di panel halaman, lalu ikuti.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!focusBus) {
+      followBusRef.current = null;
+      return;
+    }
+    const state = modelLayerRef.current?.getBusState(focusBus.id);
+    if (!map || !mapReady || !state) return;
+    const duration = 900;
+    followBusRef.current = { id: focusBus.id, from: Date.now() + duration + 50 };
+    map.easeTo({
+      center: state.lngLat,
+      zoom: Math.max(map.getZoom(), VEHICLE_FOCUS_ZOOM),
+      padding: { ...DEFAULT_FOCUS_PADDING, ...focusPaddingRef.current },
+      duration,
+    });
+  }, [focusBus, mapReady]);
+
   // Overlay markers (CCTV / lights / crowd / events)
   useEffect(() => {
     const map = mapRef.current;
@@ -2038,6 +2628,16 @@ export default function DigitalTwinMapInner({
               />
             )}
           </div>
+          {activeTab === "live" && showHorizonBar && (
+            <LiveHorizonBar
+              horizon={horizon}
+              setHorizon={(h) => {
+                // Popup simpang berisi angka statis; tutup agar tidak basi.
+                popupRef.current?.remove();
+                setHorizon(h);
+              }}
+            />
+          )}
           {activeTab === "prediction" && (
             <ForecastTimeline
               forecastTime={forecastTime}

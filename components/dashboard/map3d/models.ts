@@ -1,11 +1,11 @@
 // Model 3D low-poly untuk marker peta Digital Twin: lampu lalu lintas di tiap
-// persimpangan dan ambulans Vanguard. Semua dibangun dari primitif three.js,
+// persimpangan, ambulans Vanguard, dan Suroboyo Bus. Semua dibangun dari primitif three.js,
 // jadi tidak ada file aset yang perlu diunduh.
 //
 // Konvensi: `root` memakai kerangka peta (x = timur, y = utara, z = atas) dan
 // hanya diberi posisi + skala oleh layer. Bagian modelnya disusun dengan
 // konvensi three.js (Y ke atas) di dalam grup yang diputar 90° terhadap X.
-// Ukuran dinormalkan: tinggi lampu = 1 unit, panjang ambulans = 1 unit.
+// Ukuran dinormalkan: tinggi lampu = 1 unit, panjang ambulans dan bus = 1 unit.
 import {
   BoxGeometry,
   BufferGeometry,
@@ -51,6 +51,12 @@ const BADGE_GAP = 0.07;
 export const SIGNAL_RADIUS = 0.3;
 /** Tinggi ambulans (unit) sampai lampu sirene. */
 export const AMBULANCE_TOP = 0.5;
+/** Tinggi bus (unit) sampai unit AC di atap. */
+export const BUS_TOP = 0.325;
+/** Ukuran bidang label kode bus (unit) sebelum diskalakan. */
+const BUS_LABEL_WIDTH = 0.6;
+const BUS_LABEL_HEIGHT = 0.24;
+const BUS_LABEL_GAP = 0.08;
 
 const UP = Math.PI / 2;
 
@@ -59,6 +65,18 @@ function merged(parts: BufferGeometry[]): BufferGeometry {
   const geometry = mergeGeometries(parts);
   parts.forEach((p) => p.dispose());
   return geometry;
+}
+/** Kotak (sx, sy, sz) berpusat di (x, y, z), bisa dimiringkan terhadap sumbu Z. */
+function boxAt(
+  size: [number, number, number],
+  x: number,
+  y: number,
+  z: number,
+  tilt = 0,
+): BufferGeometry {
+  return new BoxGeometry(size[0], size[1], size[2])
+    .rotateZ(tilt)
+    .translate(x, y, z);
 }
 // Sisi rumah lampu yang diberi lampu: [arah x, arah z].
 const LAMP_FACES: [number, number][] = [
@@ -76,6 +94,7 @@ export class ModelKit {
   private geometries: BufferGeometry[] = [];
   private materials: Material[] = [];
   private badgeTextures = new Map<number, CanvasTexture>();
+  private busLabelTextures = new Map<string, CanvasTexture>();
 
   readonly unitBox = this.geo(new BoxGeometry(1, 1, 1));
   /** Bagian berwarna status: alas dan dua tutup rumah lampu. */
@@ -103,6 +122,57 @@ export class ModelKit {
   readonly badgePlane = this.geo(new PlaneGeometry(BADGE_WIDTH, BADGE_HEIGHT));
   readonly wheel = this.geo(new CylinderGeometry(0.075, 0.075, 0.052, 16));
 
+  // Suroboyo Bus (depan = +X, pintu di kiri = -Z). Tiap warna satu geometri
+  // gabungan, jadi satu bus hanya beberapa draw call.
+  readonly busBody = this.geo(
+    merged([
+      boxAt([1, 0.115, 0.26], 0, 0.0925, 0),
+      boxAt([1, 0.15, 0.25], 0, 0.225, 0),
+    ]),
+  );
+  readonly busGlass = this.geo(
+    merged([
+      // Jendela samping, kaca depan, kaca belakang, dan dua pintu.
+      boxAt([0.84, 0.085, 0.256], -0.04, 0.215, 0),
+      boxAt([0.014, 0.135, 0.215], 0.495, 0.205, 0),
+      boxAt([0.014, 0.07, 0.19], -0.495, 0.225, 0),
+      boxAt([0.075, 0.2, 0.01], 0.37, 0.15, -0.127),
+      boxAt([0.075, 0.2, 0.01], -0.02, 0.15, -0.127),
+    ]),
+  );
+  readonly busTrim = this.geo(
+    merged([
+      // Lengkung putih khas di kedua sisi, papan rute, dan unit AC atap.
+      ...[0.131, -0.131].flatMap((z) => [
+        boxAt([0.46, 0.024, 0.006], -0.14, 0.115, z, -0.3),
+        boxAt([0.34, 0.016, 0.006], -0.26, 0.085, z, -0.3),
+      ]),
+      boxAt([0.014, 0.028, 0.18], 0.496, 0.283, 0),
+      boxAt([0.34, 0.022, 0.17], -0.08, 0.311, 0),
+    ]),
+  );
+  readonly busDark = this.geo(
+    merged([
+      boxAt([0.016, 0.04, 0.262], 0.497, 0.06, 0),
+      boxAt([0.016, 0.04, 0.262], -0.497, 0.06, 0),
+      // Tiap poros roda satu silinder yang menembus badan bus.
+      ...[0.31, -0.27].map((x) =>
+        new CylinderGeometry(0.046, 0.046, 0.268, 14)
+          .rotateX(UP)
+          .translate(x, 0.046, 0),
+      ),
+    ]),
+  );
+  readonly busLights = this.geo(
+    merged([
+      boxAt([0.012, 0.02, 0.05], 0.502, 0.085, 0.085),
+      boxAt([0.012, 0.02, 0.05], 0.502, 0.085, -0.085),
+    ]),
+  );
+  readonly busLabelPlane = this.geo(
+    new PlaneGeometry(BUS_LABEL_WIDTH, BUS_LABEL_HEIGHT),
+  );
+
   readonly housing = this.lambert("#1f2937");
   readonly metal = this.lambert("#475569");
   readonly white = this.lambert("#f8fafc");
@@ -111,6 +181,9 @@ export class ModelKit {
   readonly tire = this.lambert("#111827");
   readonly hub = this.lambert("#cbd5e1");
   readonly headlight = this.basic("#fef9c3");
+  readonly busRed = this.lambert("#d81e2c");
+  readonly busWindow = this.lambert("#16202e");
+  readonly busHalo = this.track(decalMaterial("#ffffff", 0.6));
   readonly shadow = this.track(
     new MeshBasicMaterial({
       color: "#0f172a",
@@ -168,11 +241,50 @@ export class ModelKit {
     return texture;
   }
 
+  /** Tekstur pil putih berisi kode bus; titiknya hijau (tepat waktu) atau kuning (terlambat). */
+  busLabelTexture(code: string, late: boolean): CanvasTexture {
+    const key = `${code}:${late}`;
+    const cached = this.busLabelTextures.get(key);
+    if (cached) return cached;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 260;
+    canvas.height = 104;
+    const ctx = canvas.getContext("2d")!;
+    const pad = 8;
+    const radius = (canvas.height - pad * 2) / 2;
+    ctx.beginPath();
+    ctx.arc(pad + radius, pad + radius, radius, Math.PI / 2, -Math.PI / 2);
+    ctx.arc(canvas.width - pad - radius, pad + radius, radius, -Math.PI / 2, Math.PI / 2);
+    ctx.closePath();
+    ctx.fillStyle = late ? "#fffbeb" : "#ffffff";
+    ctx.fill();
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = late ? "#d97706" : "#334155";
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(pad + radius + 2, canvas.height / 2, 15, 0, Math.PI * 2);
+    ctx.fillStyle = late ? "#d97706" : "#16a34a";
+    ctx.fill();
+    ctx.fillStyle = "#111827";
+    ctx.font = "800 50px system-ui, -apple-system, 'Segoe UI', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(code, canvas.width / 2 + 20, canvas.height / 2 + 3);
+
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    this.busLabelTextures.set(key, texture);
+    return texture;
+  }
+
   dispose() {
     this.geometries.forEach((g) => g.dispose());
     this.materials.forEach((m) => m.dispose());
     this.badgeTextures.forEach((t) => t.dispose());
     this.badgeTextures.clear();
+    this.busLabelTextures.forEach((t) => t.dispose());
+    this.busLabelTextures.clear();
   }
 }
 
@@ -447,5 +559,85 @@ export class AmbulanceModel {
     this.zoneMaterial.dispose();
     this.ringMaterial.dispose();
     this.pulseMaterial.dispose();
+  }
+}
+
+// ─── Suroboyo Bus ───────────────────────────────────────────────────────────
+/** Radius lingkar warna koridor di bawah bus (unit). */
+const BUS_RING = 0.6;
+
+export class BusModel {
+  readonly root = new Group();
+  /** Diputar terhadap sumbu atas mengikuti arah rute (0 = timur). */
+  private headingGroup = new Group();
+  private body = new Group();
+  private ringMaterial: MeshBasicMaterial;
+  private labelMaterial = new MeshBasicMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+  });
+  /** Billboard kode bus; orientasinya diatur layer supaya menghadap kamera. */
+  readonly label: Mesh;
+  private late: boolean | null = null;
+
+  /** `routeColor` = warna koridor, sama dengan garis rutenya di peta. */
+  constructor(
+    private kit: ModelKit,
+    private code: string,
+    routeColor: string,
+  ) {
+    // Alas putih supaya bus merah tetap terbaca di atas garis kepadatan.
+    decal(this.root, kit.disc, kit.busHalo, BUS_RING, 0.004);
+    this.ringMaterial = decalMaterial(routeColor, 0.95);
+    decal(this.root, kit.ring, this.ringMaterial, BUS_RING, 0.006);
+
+    this.root.add(this.headingGroup);
+    const shadow = decal(this.headingGroup, kit.disc, kit.shadow, 1, 0.01);
+    shadow.scale.set(0.54, 0.17, 1);
+    shadow.renderOrder = 0;
+
+    this.body.rotation.x = UP;
+    this.headingGroup.add(this.body);
+    part(this.body, kit.busBody, kit.busRed, 0, 0, 0);
+    part(this.body, kit.busGlass, kit.busWindow, 0, 0, 0);
+    part(this.body, kit.busTrim, kit.white, 0, 0, 0);
+    part(this.body, kit.busDark, kit.tire, 0, 0, 0);
+    part(this.body, kit.busLights, kit.headlight, 0, 0, 0);
+
+    this.label = part(this.root, kit.busLabelPlane, this.labelMaterial, 0, 0, 0);
+    this.label.renderOrder = 10;
+    this.setLabelWidth(BUS_LABEL_WIDTH);
+    this.setLate(false);
+  }
+
+  /** Lebar label dalam unit model; 0 menyembunyikannya. */
+  setLabelWidth(width: number) {
+    this.label.visible = width > 0;
+    const factor = width / BUS_LABEL_WIDTH;
+    this.label.scale.setScalar(factor);
+    this.label.position.z =
+      BUS_TOP + BUS_LABEL_GAP + (BUS_LABEL_HEIGHT * factor) / 2;
+  }
+
+  setLate(late: boolean) {
+    if (late === this.late) return;
+    this.late = late;
+    this.labelMaterial.map = this.kit.busLabelTexture(this.code, late);
+    this.labelMaterial.needsUpdate = true;
+  }
+
+  setHeading(radians: number) {
+    this.headingGroup.rotation.z = radians;
+  }
+
+  /** Badan bergetar halus saat bus melaju. `time` dalam detik. */
+  animate(time: number, moving: boolean) {
+    this.body.position.z = moving ? Math.sin(time * 9) * 0.003 : 0;
+  }
+
+  dispose() {
+    this.ringMaterial.dispose();
+    this.labelMaterial.dispose();
   }
 }

@@ -1,9 +1,11 @@
 'use client'
 import { useMemo, useState, useSyncExternalStore } from 'react'
 import useSWR from 'swr'
-import { Ambulance, ChevronUp, LocateFixed, Zap } from 'lucide-react'
+import { Ambulance, BusFront, ChevronUp, LocateFixed, Zap } from 'lucide-react'
 import { DigitalTwinMap } from '@/components/dashboard/DigitalTwinMap'
+import { SuroboyoBusPanel } from '@/components/dashboard/SuroboyoBusPanel'
 import { Badge } from '@/components/ui/badge'
+import { BUSES, getBus } from '@/lib/simulation/suroboyoBus'
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
@@ -36,6 +38,14 @@ interface EmergencyVehicle {
 const PANEL_WIDTH = 380
 const GLASS = 'border border-white/70 bg-white/85 shadow-lg backdrop-blur-md'
 const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F1610]'
+
+// Halaman punya dua mode: unit darurat (ambulans + green wave) dan pelacakan
+// Suroboyo Bus (estimasi kedatangan + prioritas sinyal).
+type Mode = 'emergency' | 'bus'
+const MODES: { id: Mode; label: string; icon: typeof Ambulance }[] = [
+  { id: 'emergency', label: 'Unit darurat', icon: Ambulance },
+  { id: 'bus', label: 'Suroboyo Bus', icon: BusFront },
+]
 
 // Di layar sempit (<1024px) panel default tertutup supaya peta tidak tertutup.
 const NARROW_QUERY = '(max-width: 1023px)'
@@ -148,6 +158,10 @@ export default function VanguardPage() {
   const [panelOpenPref, setPanelOpenPref] = useState<boolean | null>(null)
   const [focusVehicle, setFocusVehicle] = useState<{ id: string; seq: number } | null>(null)
   const [triggering, setTriggering] = useState(false)
+  const [mode, setMode] = useState<Mode>('emergency')
+  const [busRouteId, setBusRouteId] = useState<string | null>(null)
+  const [selectedBusId, setSelectedBusId] = useState<string | null>(null)
+  const [focusBus, setFocusBus] = useState<{ id: string; seq: number } | null>(null)
   const isNarrow = useSyncExternalStore(subscribeNarrow, getNarrow, getNarrowOnServer)
   const panelOpen = panelOpenPref ?? !isNarrow
 
@@ -174,6 +188,42 @@ export default function VanguardPage() {
     if (isNarrow) setPanelOpenPref(false)
   }
 
+  const handleModeChange = (next: Mode) => {
+    setMode(next)
+    if (next !== 'bus') setFocusBus(null)
+  }
+
+  const handleLocateBus = (id: string) => {
+    setFocusBus(prev => ({ id, seq: (prev?.seq ?? 0) + 1 }))
+    if (isNarrow) setPanelOpenPref(false)
+  }
+
+  // Memilih bus di panel langsung melacaknya di peta; menutupnya menghentikan pelacakan.
+  const handleSelectBus = (id: string | null) => {
+    setSelectedBusId(id)
+    if (id) handleLocateBus(id)
+    else setFocusBus(null)
+  }
+
+  // Bus yang diklik di peta dibuka di panel tanpa menggeser peta.
+  const handleBusPicked = (id: string) => {
+    setSelectedBusId(id)
+    setPanelOpenPref(true)
+  }
+
+  const handleBusRouteChange = (routeId: string | null) => {
+    setBusRouteId(routeId)
+    if (routeId && selectedBusId && getBus(selectedBusId)?.route.id !== routeId) {
+      setSelectedBusId(null)
+      setFocusBus(null)
+    }
+  }
+
+  const busView = useMemo(
+    () => (mode === 'bus' ? { routeId: busRouteId } : null),
+    [mode, busRouteId],
+  )
+
   const handleOverride = (v: EmergencyVehicle) => {
     alert(`Manual override untuk ${v.label} diaktifkan. Green Wave dinonaktifkan sementara.`)
   }
@@ -186,21 +236,40 @@ export default function VanguardPage() {
     right: !isNarrow && panelOpen ? PANEL_WIDTH + 28 : 16,
   }), [isNarrow, panelOpen])
 
+  const activeCount = mode === 'bus' ? BUSES.length : vehicles.length
   const headerPill = (
-    <div className={`flex max-w-full items-center gap-2.5 rounded-full py-1.5 pl-4 pr-2 ${GLASS}`}>
-      <h2 className="truncate text-sm font-bold text-[#111827]">SPARTA Vanguard</h2>
-      <Badge
-        variant="outline"
-        className={`text-xs font-bold uppercase ${
-          vehicles.length > 0
-            ? 'border-[#16A34A] bg-green-50 text-[#16A34A]'
-            : 'border-slate-300 bg-slate-50 text-slate-500'
-        }`}
-      >
-        {vehicles.length > 0 && <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-current" />}
-        {vehicles.length} unit aktif
-      </Badge>
-    </div>
+    <>
+      <div className={`flex max-w-full items-center gap-2.5 rounded-full py-1.5 pl-4 pr-2 ${GLASS}`}>
+        <h2 className="truncate text-sm font-bold text-[#111827]">SPARTA Vanguard</h2>
+        <Badge
+          variant="outline"
+          className={`text-xs font-bold uppercase ${
+            activeCount > 0
+              ? 'border-[#16A34A] bg-green-50 text-[#16A34A]'
+              : 'border-slate-300 bg-slate-50 text-slate-500'
+          }`}
+        >
+          {activeCount > 0 && <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-current" />}
+          {activeCount} {mode === 'bus' ? 'bus aktif' : 'unit aktif'}
+        </Badge>
+      </div>
+      <div className={`flex gap-1 rounded-full p-1 ${GLASS}`} role="group" aria-label="Mode Vanguard">
+        {MODES.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={mode === id}
+            onClick={() => handleModeChange(id)}
+            className={`flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-bold transition-colors ${FOCUS_RING} ${
+              mode === id ? 'bg-[#8F1610] text-white' : 'text-slate-600 hover:bg-white'
+            }`}
+          >
+            <Icon size={14} aria-hidden="true" />
+            {label}
+          </button>
+        ))}
+      </div>
+    </>
   )
 
   const triggerButton = (
@@ -226,13 +295,42 @@ export default function VanguardPage() {
         topLeftSlot={headerPill}
         focusPadding={focusPadding}
         focusVehicle={focusVehicle}
+        busView={busView}
+        focusBus={focusBus}
+        onBusSelect={mode === 'bus' ? handleBusPicked : undefined}
       />
 
       <div
         className="pointer-events-none absolute bottom-12 right-3 top-3 z-[850] flex max-w-[calc(100%-1.5rem)] flex-col items-end"
         style={{ width: PANEL_WIDTH }}
       >
-        {panelOpen ? (
+        {mode === 'bus' ? (
+          panelOpen ? (
+            <SuroboyoBusPanel
+              routeId={busRouteId}
+              onRouteChange={handleBusRouteChange}
+              selectedBusId={selectedBusId}
+              onSelectBus={handleSelectBus}
+              onLocate={handleLocateBus}
+              onClose={() => setPanelOpenPref(false)}
+              className={GLASS}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setPanelOpenPref(true)}
+              aria-expanded={false}
+              aria-label={`Buka panel Suroboyo Bus, ${BUSES.length} bus aktif`}
+              className={`pointer-events-auto inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold text-[#111827] transition-colors hover:bg-white ${FOCUS_RING} ${GLASS}`}
+            >
+              <BusFront size={14} className="text-[#8F1610]" />
+              <span className="hidden sm:inline">Suroboyo Bus</span>
+              <span className="rounded-full bg-[#111827] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                {BUSES.length}
+              </span>
+            </button>
+          )
+        ) : panelOpen ? (
           <section
             aria-label="Unit darurat SPARTA Vanguard"
             className={`pointer-events-auto flex max-h-full w-full flex-col overflow-hidden rounded-2xl ${GLASS}`}

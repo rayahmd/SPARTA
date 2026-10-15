@@ -23,6 +23,63 @@ function setCameraDistance(camera: Camera, distance: number) {
   camera.position.setLength(distance);
 }
 
+interface OrbitHandle {
+  update: () => void;
+  addEventListener: (type: "change", listener: () => void) => void;
+  removeEventListener: (type: "change", listener: () => void) => void;
+}
+interface LinkedView {
+  camera: Camera;
+  controls: OrbitHandle;
+  invalidate: () => void;
+}
+/**
+ * Menautkan kamera beberapa canvas (mode Bandingkan): memutar atau men-zoom
+ * salah satunya menggerakkan yang lain ke sudut pandang yang sama.
+ */
+export interface CameraLink {
+  views: Set<LinkedView>;
+  /** True selama sudut pandang sedang disalin, supaya tidak saling memicu. */
+  applying: boolean;
+}
+export function createCameraLink(): CameraLink {
+  return { views: new Set(), applying: false };
+}
+
+function copyView(link: CameraLink, from: Camera, to: LinkedView) {
+  link.applying = true;
+  to.camera.position.copy(from.position);
+  to.controls.update();
+  link.applying = false;
+  to.invalidate();
+}
+
+function LinkCamera({ link }: { link: CameraLink }) {
+  const camera = useThree((state) => state.camera);
+  const controls = useThree((state) => state.controls) as OrbitHandle | null;
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    if (!controls) return;
+    const view: LinkedView = { camera, controls, invalidate };
+    // Canvas yang baru muncul mengikuti sudut pandang canvas yang sudah ada.
+    const [existing] = link.views;
+    if (existing) copyView(link, existing.camera, view);
+    link.views.add(view);
+    const onChange = () => {
+      if (link.applying) return;
+      link.views.forEach((other) => {
+        if (other !== view) copyView(link, camera, other);
+      });
+    };
+    controls.addEventListener("change", onChange);
+    return () => {
+      controls.removeEventListener("change", onChange);
+      link.views.delete(view);
+    };
+  }, [link, camera, controls, invalidate]);
+  return null;
+}
+
 /** Menyesuaikan jarak kamera dengan bentuk canvas (mis. dua canvas sempit di mode Bandingkan). */
 function FitCamera() {
   const camera = useThree((state) => state.camera);
@@ -57,6 +114,8 @@ interface IntersectionSceneProps {
   redrawToken: string;
   /** Label kecil di pojok canvas (dipakai mode Bandingkan). */
   label?: string;
+  /** Canvas dengan tautan yang sama berbagi sudut pandang kamera. */
+  cameraLink?: CameraLink;
 }
 
 export function IntersectionScene({
@@ -66,6 +125,7 @@ export function IntersectionScene({
   playing,
   redrawToken,
   label,
+  cameraLink,
 }: IntersectionSceneProps) {
   const layout = useMemo(() => buildLayout(input.geometry), [input.geometry]);
   const plan = planId === "ai" ? input.plans.ai : input.plans.current;
@@ -105,6 +165,7 @@ export function IntersectionScene({
           maxPolarAngle={1.28}
         />
         <FitCamera />
+        {cameraLink && <LinkCamera link={cameraLink} />}
         <RedrawOnChange token={`${redrawToken}:${planId}`} />
       </Canvas>
       {label && (

@@ -14,7 +14,7 @@ import type {
   VehicleType,
 } from "@/lib/sim/types";
 import { cn } from "@/lib/utils";
-import { IntersectionScene } from "./IntersectionScene";
+import { IntersectionScene, createCameraLink } from "./IntersectionScene";
 import { MetricCards } from "./MetricCards";
 import { PhaseDiagram } from "./PhaseDiagram";
 import { SimControls } from "./SimControls";
@@ -214,6 +214,8 @@ export default function IntersectionSimPanel({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [selectedTab, setSelectedTab] = useState<SimTab | null>(null);
   const [webgl] = useState(detectWebGL);
+  // Di mode Bandingkan kedua canvas berbagi sudut pandang kamera.
+  const [cameraLink] = useState(createCameraLink);
   const sim = useIntersectionSim(node, arms);
   const { input, frame } = sim;
 
@@ -349,6 +351,7 @@ export default function IntersectionSimPanel({
                       playing={sim.playing}
                       redrawToken={String(sim.resetCount)}
                       label={tab === "compare" ? TAB_LABELS[planId] : undefined}
+                      cameraLink={cameraLink}
                     />
                   </div>
                 ))}

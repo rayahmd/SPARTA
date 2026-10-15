@@ -10,7 +10,7 @@ export default function LiveMapPage() {
 
   return (
     <div className="relative -m-6 h-screen overflow-hidden">
-      <DigitalTwinMap nodes={nodes} onNodeSelect={() => {}} />
+      <DigitalTwinMap nodes={nodes} onNodeSelect={() => {}} showHorizonBar />
     </div>
   )
 }

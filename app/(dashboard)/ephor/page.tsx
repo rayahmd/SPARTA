@@ -157,6 +157,7 @@ export default function EphorDashboard() {
         onApprove={handleApprove}
         topLeftSlot={headerPill}
         focusPadding={focusPadding}
+        showHorizonBar
       />
 
       {/* Panel floating. Container tidak menangkap pointer supaya peta tetap bisa
