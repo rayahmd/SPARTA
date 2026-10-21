@@ -8,18 +8,18 @@ import useSWR from 'swr'
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
 const simulatedLogs = [
-  { id: 'RPT-001', type: 'AI Approve', node: 'Persimpangan Ahmad Yani', action: 'Perpanjang fase hijau 30s', result: 'Berhasil', time: '09:14' },
+  { id: 'RPT-001', type: 'Agent Terapkan', node: 'Persimpangan Ahmad Yani', action: '+15 dtk hijau, notice ke 2 tetangga', result: 'Diterapkan otomatis', time: '09:14' },
   { id: 'RPT-002', type: 'Insiden', node: 'Kertajaya - Dharmawangsa', action: 'Deteksi kepadatan ekstrim', result: 'Diteruskan', time: '09:01' },
   { id: 'RPT-003', type: 'Vanguard', node: 'Sistem', action: 'Ambulans Unit 12 diaktifkan', result: 'Green Wave ON', time: '08:55' },
-  { id: 'RPT-004', type: 'AI Reject', node: 'Darmo - Polisi Istimewa', action: 'Rerouting Jl. Mayjend', result: 'Ditolak Operator', time: '08:42' },
-  { id: 'RPT-005', type: 'AI Approve', node: 'Diponegoro - Kutai', action: 'Kurangi fase merah 20s', result: 'Berhasil', time: '08:30' },
+  { id: 'RPT-004', type: 'Agent Rollback', node: 'Darmo - Polisi Istimewa', action: '+10 dtk hijau dikembalikan', result: 'Rollback otomatis', time: '08:42' },
+  { id: 'RPT-005', type: 'Agent Terapkan', node: 'Diponegoro - Kutai', action: 'Geser offset +9 dtk (koordinasi tetangga)', result: 'Diterapkan otomatis', time: '08:30' },
   { id: 'RPT-006', type: 'Pulse Report', node: 'Wonokromo', action: 'Laporan banjir masyarakat', result: 'Ditindaklanjuti', time: '08:10' },
-  { id: 'RPT-007', type: 'AI Approve', node: 'Basuki Rahmat', action: 'Aktifkan semua jalur searah', result: 'Berhasil', time: '07:58' },
+  { id: 'RPT-007', type: 'Agent Terapkan', node: 'Basuki Rahmat', action: '+10 dtk hijau Utara', result: 'Diterapkan otomatis', time: '07:58' },
 ]
 
 const typeStyles: Record<string, string> = {
-  'AI Approve': 'bg-green-100 text-green-700',
-  'AI Reject': 'bg-red-100 text-red-600',
+  'Agent Terapkan': 'bg-green-100 text-green-700',
+  'Agent Rollback': 'bg-red-100 text-red-600',
   'Insiden': 'bg-orange-100 text-orange-700',
   'Vanguard': 'bg-blue-100 text-blue-700',
   'Pulse Report': 'bg-purple-100 text-purple-700',
@@ -37,7 +37,7 @@ export default function ReportsPage() {
       <div className="flex justify-between items-end flex-wrap gap-4">
         <div>
           <h2 className="text-2xl font-bold text-[#111827]">Laporan Aktivitas Sistem</h2>
-          <p className="text-muted-foreground text-sm mt-1">Riwayat lengkap seluruh aktivitas AI, operator, dan insiden.</p>
+          <p className="text-muted-foreground text-sm mt-1">Riwayat lengkap keputusan agent, override operator, dan insiden.</p>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" className="font-bold border-slate-300 hover:bg-slate-50" onClick={() => handleExport('CSV')}>
@@ -58,14 +58,14 @@ export default function ReportsPage() {
         </Card>
         <Card className="rounded-xl shadow-sm border border-slate-200">
           <CardContent className="p-5">
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">AI Disetujui</p>
-            <p className="text-3xl font-bold text-green-600">{simulatedLogs.filter(l => l.type === 'AI Approve').length}</p>
+            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Diterapkan Agent</p>
+            <p className="text-3xl font-bold text-green-600">{simulatedLogs.filter(l => l.type === 'Agent Terapkan').length}</p>
           </CardContent>
         </Card>
         <Card className="rounded-xl shadow-sm border border-slate-200">
           <CardContent className="p-5">
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">AI Ditolak</p>
-            <p className="text-3xl font-bold text-red-500">{simulatedLogs.filter(l => l.type === 'AI Reject').length}</p>
+            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Rollback Agent</p>
+            <p className="text-3xl font-bold text-red-500">{simulatedLogs.filter(l => l.type === 'Agent Rollback').length}</p>
           </CardContent>
         </Card>
         <Card className="rounded-xl shadow-sm border border-slate-200">

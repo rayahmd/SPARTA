@@ -63,16 +63,12 @@ function MapResizeHandler() {
 }
 
 export function CCTVMap({ nodes }: { nodes: CameraNode[] }) {
-  const [cctvIcon, setCctvIcon] = useState<L.DivIcon | null>(null)
+  // Modul ini hanya dimuat di client (dynamic import, ssr: false), jadi ikon
+  // Leaflet aman dibuat saat state pertama kali diinisialisasi.
+  const [cctvIcon] = useState<L.DivIcon>(createCctvIcon)
   const center: [number, number] = nodes.length > 0
     ? [nodes[0].lat, nodes[0].lng]
     : [-7.2458, 112.7378]
-
-  useEffect(() => {
-    setCctvIcon(createCctvIcon())
-  }, [])
-
-  if (!cctvIcon) return null
 
   return (
     <MapContainer

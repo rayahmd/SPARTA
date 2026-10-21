@@ -56,3 +56,21 @@ model SimulationLog {
   ranAt   DateTime @default(now())
   summary String
 }
+
+// Log keputusan multi-agent SPARTA Ephor (lib/agents). Satu baris per AgentEvent.
+model AgentEvent {
+  id         String   @id @default(cuid())
+  seq        Int
+  runId      String
+  type       String
+  agentId    String
+  agentName  String
+  messageId  String?
+  simTimeSec Float
+  summary    String
+  payload    String
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("agent_events")
+}

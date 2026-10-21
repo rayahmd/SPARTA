@@ -28,7 +28,7 @@ const COLORS = ['#1e293b', '#ef4444', '#3b82f6', '#facc15', '#64748b']
 
 const aiPerformance = [
   { label: 'Prediksi Akurat', value: 94.2, color: 'text-green-600' },
-  { label: 'Rekomendasi Disetujui', value: 87.5, color: 'text-blue-600' },
+  { label: 'Keputusan Agent Lolos Twin Gate', value: 87.5, color: 'text-blue-600' },
   { label: 'Insiden Terdeteksi Lebih Awal', value: 91.0, color: 'text-[#111827]' },
   { label: 'Pengurangan Waktu Tunggu', value: 23.4, color: 'text-[#f59e0b]' },
 ]

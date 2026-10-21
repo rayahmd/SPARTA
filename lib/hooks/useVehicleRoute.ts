@@ -19,23 +19,22 @@ export interface VehicleRoute {
 const osrmService = new OSRMRoutingService()
 
 export function useVehicleRoute(vehicle: EmergencyVehicle | null): VehicleRoute | null {
-  const [route, setRoute] = useState<VehicleRoute | null>(null)
+  // Rute disimpan per pasangan asal-tujuan; rute aktif diturunkan saat render
+  // supaya effect hanya menyetel state dari callback fetch.
+  const [routes, setRoutes] = useState<Record<string, VehicleRoute>>({})
   const cacheRef = useRef<Map<string, VehicleRoute>>(new Map())
+  const routeKey = vehicle
+    ? `${vehicle.originLat},${vehicle.originLng};${vehicle.destLat},${vehicle.destLng}`
+    : null
 
   useEffect(() => {
-    if (!vehicle) {
-      setRoute(null)
-      return
-    }
+    if (!vehicle) return
+    const setRoute = (key: string, value: VehicleRoute) =>
+      setRoutes(prev => ({ ...prev, [key]: value }))
 
     const { id, originLat, originLng, destLat, destLng } = vehicle
     const cacheKey = `${originLat},${originLng};${destLat},${destLng}`
-
-    const cachedRoute = cacheRef.current.get(cacheKey)
-    if (cachedRoute) {
-      setRoute(cachedRoute)
-      return
-    }
+    if (cacheRef.current.has(cacheKey)) return
 
     osrmService.getRoute(
       [originLat, originLng],
@@ -51,9 +50,9 @@ export function useVehicleRoute(vehicle: EmergencyVehicle | null): VehicleRoute 
           duration: routeResponse.duration / 60,
         }
         cacheRef.current.set(cacheKey, vehicleRoute)
-        setRoute(vehicleRoute)
+        setRoute(cacheKey, vehicleRoute)
       } else {
-        setRoute({
+        setRoute(cacheKey, {
           vehicleId: id,
           geometry: [[originLat, originLng], [destLat, destLng]],
           distance: Math.sqrt(Math.pow(destLat - originLat, 2) + Math.pow(destLng - originLng, 2)) * 111,
@@ -61,7 +60,7 @@ export function useVehicleRoute(vehicle: EmergencyVehicle | null): VehicleRoute 
         })
       }
     }).catch(() => {
-      setRoute({
+      setRoute(cacheKey, {
         vehicleId: id,
         geometry: [[originLat, originLng], [destLat, destLng]],
         distance: Math.sqrt(Math.pow(destLat - originLat, 2) + Math.pow(destLng - originLng, 2)) * 111,
@@ -70,5 +69,5 @@ export function useVehicleRoute(vehicle: EmergencyVehicle | null): VehicleRoute 
     })
   }, [vehicle?.id, vehicle?.originLat, vehicle?.originLng, vehicle?.destLat, vehicle?.destLng])
 
-  return route
+  return routeKey ? routes[routeKey] ?? null : null
 }

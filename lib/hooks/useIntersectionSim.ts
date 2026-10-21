@@ -38,6 +38,7 @@ const PUBLISH_INTERVAL_MS = 250;
 function buildSimUrl(
   node: TrafficNodeSnapshot,
   arms: DetectedArm[] | null | undefined,
+  agent: boolean,
 ): string {
   const query = new URLSearchParams({
     name: node.name,
@@ -58,6 +59,8 @@ function buildSimUrl(
         .join(","),
     );
   }
+  // Model twin agent: "Rekomendasi AI" = rencana yang diterapkan otomatis agent.
+  if (agent) query.set("agent", "1");
   return `/api/traffic-nodes/${encodeURIComponent(node.id)}/simulation?${query}`;
 }
 
@@ -81,14 +84,16 @@ function readFrame(engines: SimEngines): SimFrame {
 export function useIntersectionSim(
   node: TrafficNodeSnapshot,
   arms?: DetectedArm[] | null,
+  opts: { agent?: boolean } = {},
 ) {
   // Snapshot dibekukan saat panel dibuka supaya polling node di halaman induk
   // tidak mengganti input di tengah simulasi.
   const [snapshot] = useState(node);
   const [junctionArms] = useState(arms);
+  const [useAgent] = useState(!!opts.agent);
 
   const { data, error, mutate } = useSWR<IntersectionSimInput, Error>(
-    buildSimUrl(snapshot, junctionArms),
+    buildSimUrl(snapshot, junctionArms, useAgent),
     fetchSimInput,
     {
       revalidateOnFocus: false,

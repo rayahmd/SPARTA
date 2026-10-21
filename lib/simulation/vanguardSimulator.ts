@@ -9,7 +9,7 @@ export function advanceVehicle(vehicle: EmergencyVehicle): EmergencyVehicle {
   const elapsedMs = now.getTime() - vehicle.createdAt.getTime();
   const estimatedTotalTimeMs = 15 * 60 * 1000; // 15 mins
   
-  let newProgress = elapsedMs / estimatedTotalTimeMs;
+  const newProgress = elapsedMs / estimatedTotalTimeMs;
   
   if (newProgress >= 1) {
     return {

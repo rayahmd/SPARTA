@@ -1,5 +1,6 @@
 'use client'
 import dynamic from 'next/dynamic'
+import type { AgentEvent, RuntimeSnapshot } from '@/lib/agents/types'
 
 const MapInner = dynamic(() => import('./DigitalTwinMapInner'), { 
   ssr: false,
@@ -43,7 +44,9 @@ interface DigitalTwinMapProps {
   vehicles?: EmergencyVehicle[]
   activeTab?: 'live' | 'prediction' | 'simulation'
   onNodeSelect: (node: TrafficNode) => void
-  onApprove?: (id: string, action: string) => void
+  /** Status agent simpang dan feed event-nya (Aktivitas Agent). */
+  agents?: RuntimeSnapshot | null
+  agentEvents?: AgentEvent[]
   initialOverlays?: Partial<{ cctv: boolean; lights: boolean; vehicles: boolean; buses: boolean; crowd: boolean; events: boolean }>
   topLeftSlot?: React.ReactNode
   focusPadding?: Partial<{ top: number; bottom: number; left: number; right: number }>
@@ -55,6 +58,6 @@ interface DigitalTwinMapProps {
   showHorizonBar?: boolean
 }
 
-export function DigitalTwinMap({ nodes, vehicles = [], activeTab = 'live', onNodeSelect, onApprove, initialOverlays, topLeftSlot, focusPadding, focusVehicle, busView, focusBus, onBusSelect, showHorizonBar }: DigitalTwinMapProps) {
-  return <MapInner nodes={nodes} vehicles={vehicles} activeTab={activeTab} onNodeSelect={onNodeSelect} onApprove={onApprove} initialOverlays={initialOverlays} topLeftSlot={topLeftSlot} focusPadding={focusPadding} focusVehicle={focusVehicle} busView={busView} focusBus={focusBus} onBusSelect={onBusSelect} showHorizonBar={showHorizonBar} />
+export function DigitalTwinMap({ nodes, vehicles = [], activeTab = 'live', onNodeSelect, agents, agentEvents, initialOverlays, topLeftSlot, focusPadding, focusVehicle, busView, focusBus, onBusSelect, showHorizonBar }: DigitalTwinMapProps) {
+  return <MapInner nodes={nodes} vehicles={vehicles} activeTab={activeTab} onNodeSelect={onNodeSelect} agents={agents} agentEvents={agentEvents} initialOverlays={initialOverlays} topLeftSlot={topLeftSlot} focusPadding={focusPadding} focusVehicle={focusVehicle} busView={busView} focusBus={focusBus} onBusSelect={onBusSelect} showHorizonBar={showHorizonBar} />
 }

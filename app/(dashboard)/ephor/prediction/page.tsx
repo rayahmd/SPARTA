@@ -119,7 +119,6 @@ const forecastOverview = {
 export default function PredictionPage() {
   const [selectedTime, setSelectedTime] = useState("15 Menit");
   const [selectedNode, setSelectedNode] = useState<TrafficNode>(nodes[0]);
-  const [approvedIds, setApprovedIds] = useState<string[]>([]);
 
   const forecast = useMemo(
     () => forecastOverview[selectedTime as keyof typeof forecastOverview],
@@ -128,13 +127,6 @@ export default function PredictionPage() {
 
   function handleNodeSelect(node: TrafficNode) {
     setSelectedNode(node);
-  }
-
-  function handleApprove(id: string, action: string) {
-    // Hook this up to your real approval endpoint (e.g. Intersection Controller
-    // tiered-approval flow) — logging here as a placeholder.
-    console.log("Approving recommendation", { id, action });
-    setApprovedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
   }
 
   return (
@@ -169,7 +161,6 @@ export default function PredictionPage() {
                 vehicles={vehicles}
                 activeTab="prediction"
                 onNodeSelect={handleNodeSelect}
-                onApprove={handleApprove}
                 initialOverlays={{
                   cctv: true,
                   lights: true,
@@ -276,7 +267,7 @@ export default function PredictionPage() {
           <Card className="rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
             <CardHeader className="border-b border-slate-100 bg-slate-50/70 px-5 py-4">
               <CardTitle className="text-base font-bold text-slate-950">
-                Rekomendasi Utama
+                Ringkasan Prediksi Simpang
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4">
@@ -300,7 +291,7 @@ export default function PredictionPage() {
                 </div>
 
                 <div className="text-sm text-slate-600">
-                  <p className="font-bold">Rekomendasi AI</p>
+                  <p className="font-bold">Prediksi untuk agent simpang</p>
                   <p className="mt-1">
                     {selectedNode.recommendation ??
                       "Tidak ada rekomendasi otomatis untuk titik ini."}
@@ -329,20 +320,11 @@ export default function PredictionPage() {
                 </div>
               </div>
 
-              <Button
-                disabled={
-                  !selectedNode.recommendation ||
-                  approvedIds.includes(selectedNode.id)
-                }
-                onClick={() =>
-                  handleApprove(selectedNode.id, "increase_green_time")
-                }
-                className="mt-4 w-full h-11 rounded-2xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 disabled:opacity-50"
-              >
-                {approvedIds.includes(selectedNode.id)
-                  ? "Disetujui ✓"
-                  : "Review & Approve"}
-              </Button>
+              <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs leading-snug text-slate-700">
+                Prediksi ini dipakai agent simpang untuk memutuskan rencana sinyal secara
+                otomatis (lolos guardrail dan twin gate). Pantau keputusan dan override di
+                panel Aktivitas Agent pada Live Map.
+              </p>
             </CardContent>
           </Card>
         </div>

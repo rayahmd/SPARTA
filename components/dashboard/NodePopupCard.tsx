@@ -1,5 +1,5 @@
-import { Box, Brain, Check, Clock, X } from "lucide-react";
-import { buildAiReasoning } from "./AiRecommendationPanel";
+import { Box, Clock, Network, X } from "lucide-react";
+import type { ActiveChange } from "@/lib/agents/types";
 
 // Isi popup pin persimpangan. Dirender jadi HTML statis (renderToString) di
 // DigitalTwinMapInner, jadi tidak boleh memakai hook atau event handler React:
@@ -26,13 +26,20 @@ export interface NodePopupCardProps {
   /** Warna angka dan progress bar untuk satu tingkat kemacetan (0..100). */
   colorForLevel: (level: number) => string;
   /**
-   * Tile tengah. Kosong di mode Live: memakai prediksi AI yang sama dengan
-   * kartu AI Recommendation. Di mode lain diisi level yang sedang ditampilkan peta.
+   * Tile tengah. Kosong di mode Live: memakai prediksi 30 menit node. Di mode
+   * lain diisi level yang sedang ditampilkan peta.
    */
   forecast?: { label: string; value: number };
-  /** Aksi sekunder yang sudah ada sebelumnya (approve / detail / sim). */
-  secondaryAction: "approve" | "detail" | "sim";
+  /** Aksi sekunder (detail / sim). */
+  secondaryAction: "detail" | "sim";
   secondaryLabel: string;
+  /** Status agent simpang ini; keputusannya diterapkan otomatis, tanpa persetujuan. */
+  agent?: {
+    statusLabel: string;
+    statusColor: string;
+    change: ActiveChange | null;
+    neighbors: number;
+  };
 }
 
 function formatTime(iso: string | undefined): string | null {
@@ -79,15 +86,17 @@ export function NodePopupCard({
   forecast,
   secondaryAction,
   secondaryLabel,
+  agent,
 }: NodePopupCardProps) {
-  const ai = buildAiReasoning(node);
   const confidencePct = Math.round(
     node.confidence > 1 ? node.confidence : node.confidence * 100,
   );
   const updatedAt = formatTime(node.updatedAt);
   const level = Math.max(0, Math.min(100, Math.round(node.currentLevel)));
   const levelColor = colorForLevel(level);
-  const forecastLabel = forecast?.label ?? `+${ai.forecastTime}`;
+  const forecastLabel = forecast?.label ?? `+${node.predicted30 > 80 ? "15" : "30"} menit`;
+  const change = agent?.change ?? null;
+  const twinPct = change?.twin?.improvementPct;
   const forecastValue = Math.round(forecast?.value ?? node.predicted30);
 
   return (
@@ -145,9 +154,9 @@ export function NodePopupCard({
             color={colorForLevel(forecastValue)}
           />
           <StatTile
-            label="Stlh intervensi"
-            value={node.recommendation ? `${ai.simResult}%` : "—"}
-            color={node.recommendation ? "#15803d" : undefined}
+            label="Skor twin"
+            value={twinPct !== undefined ? `−${Math.max(0, Math.round(twinPct))}%` : "—"}
+            color={twinPct !== undefined ? "#15803d" : undefined}
           />
         </div>
 
@@ -163,26 +172,43 @@ export function NodePopupCard({
           />
         </div>
 
-        {/* Rekomendasi AI */}
-        <div className="flex items-start gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-2.5 py-2">
-          <Brain
+        {/* Agent simpang */}
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2">
+          <Network
             size={15}
-            className="mt-0.5 shrink-0 text-yellow-700"
+            className="mt-0.5 shrink-0 text-[#8F1610]"
             aria-hidden="true"
           />
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold leading-4 text-yellow-900">
-              {node.recommendation ?? "Tidak ada rekomendasi AI"}
-            </p>
-            <p className="mt-1 flex flex-wrap gap-1">
-              <span className="rounded bg-white px-1.5 py-0.5 text-[10px] font-semibold leading-3 text-slate-700 ring-1 ring-yellow-200">
-                Confidence {confidencePct}%
-              </span>
-              {node.recommendation && (
-                <span className="rounded bg-white px-1.5 py-0.5 text-[10px] font-semibold leading-3 text-slate-700 ring-1 ring-yellow-200">
-                  Reduksi {ai.simReduction}%
+            <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase leading-4 tracking-wide text-slate-600">
+              Agent simpang
+              {agent && (
+                <span
+                  className="rounded-full px-1.5 text-[10px] leading-4 text-white"
+                  style={{ background: agent.statusColor }}
+                >
+                  {agent.statusLabel}
                 </span>
               )}
+            </p>
+            <p className="mt-0.5 text-xs font-semibold leading-4 text-[#111827]">
+              {!agent
+                ? "Status agent belum tersedia"
+                : change
+                  ? `${change.summary}, diterapkan otomatis`
+                  : "Siklus default berjalan"}
+            </p>
+            {change && (
+              <p className="mt-0.5 text-[10px] leading-3 text-slate-600">
+                {change.origin === "neighbor"
+                  ? `Menyesuaikan perubahan ${change.originName}`
+                  : `${change.replies.length} dari ${agent?.neighbors ?? 0} tetangga membalas notice`}
+              </p>
+            )}
+            <p className="mt-1 flex flex-wrap gap-1">
+              <span className="rounded bg-white px-1.5 py-0.5 text-[10px] font-semibold leading-3 text-slate-700 ring-1 ring-amber-200">
+                Prediksi conf. {confidencePct}%
+              </span>
             </p>
           </div>
         </div>
@@ -202,9 +228,6 @@ export function NodePopupCard({
             data-action={secondaryAction}
             className="flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-[#111827] transition-colors hover:bg-slate-50"
           >
-            {secondaryAction === "approve" && (
-              <Check size={14} className="text-[#16A34A]" aria-hidden="true" />
-            )}
             {secondaryLabel}
           </button>
         </div>

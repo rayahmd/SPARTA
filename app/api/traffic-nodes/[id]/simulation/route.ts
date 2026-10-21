@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/db";
+import { getAgentRuntime } from "@/lib/agents/server";
+import { agentSimInput } from "@/lib/agents/sim-view";
 import { buildSimInput } from "@/lib/sim/adapter";
 import type { DetectedArm, TrafficNodeSnapshot } from "@/lib/sim/types";
 
@@ -16,6 +18,8 @@ const querySchema = z.object({
   recommendation: z.string().max(300).optional(),
   // Bentuk simpang dari data jalan di peta: "arah:kelas:jumlahGaris,..."
   arms: z.string().max(200).optional(),
+  // "1" = pakai model twin agent simpang ini (rencana yang diterapkan otomatis).
+  agent: z.enum(["1"]).optional(),
 });
 
 const armSchema = z.object({
@@ -52,6 +56,15 @@ export async function GET(
     return NextResponse.json({ error: "Invalid data" }, { status: 400 });
   }
   const query = parsed.data;
+
+  if (query.agent) {
+    try {
+      const agent = (await getAgentRuntime()).agentFor(id);
+      if (agent) return NextResponse.json(agentSimInput(agent, new Date().toISOString()));
+    } catch (error) {
+      console.error("Failed to read agent model for simulation:", error);
+    }
+  }
 
   let dbNode: TrafficNodeSnapshot | null = null;
   try {

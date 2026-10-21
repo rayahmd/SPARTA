@@ -42,7 +42,7 @@ const METRICS: MetricDef[] = [
   },
 ];
 
-function DeltaBadge({
+export function DeltaBadge({
   base,
   value,
   lowerIsBetter,

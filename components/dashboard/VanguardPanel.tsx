@@ -31,7 +31,7 @@ export interface VanguardPanelProps {
 }
 
 export function VanguardPanel({ vehicles, onTrigger, isMinimized = false, onMinimizeToggle, className }: VanguardPanelProps) {
-  const [selectedRoute, setSelectedRoute] = useState<any | null>(null)
+  const [selectedRoute, setSelectedRoute] = useState<EmergencyVehicle | null>(null)
   
   const handleOverride = async (id: string) => {
     console.log(`Manual override activated for vehicle ${id}`)

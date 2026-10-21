@@ -42,6 +42,10 @@ export interface ModelNode {
   kritis: boolean;
   percent: number;
   selected: boolean;
+  /** Pengali ukuran model; default 1. */
+  size?: number;
+  /** False = hanya penanda (lampu ruas cabang), tidak bisa diklik. */
+  pickable?: boolean;
 }
 export interface ModelVehicle {
   id: string;
@@ -164,6 +168,8 @@ interface NodeRec {
   y: number;
   z: number;
   selected: boolean;
+  size: number;
+  pickable: boolean;
   /** Faktor skala pin terpilih, dianimasikan menuju 1 atau SELECTED_GROW. */
   grow: number;
   onScreen: boolean;
@@ -328,6 +334,8 @@ export class MapModelLayer implements CustomLayerInterface {
           y: 0,
           z: 0,
           selected: n.selected,
+          size: n.size ?? 1,
+          pickable: n.pickable ?? true,
           grow: n.selected ? SELECTED_GROW : 1,
           onScreen: false,
           baseX: 0,
@@ -343,6 +351,8 @@ export class MapModelLayer implements CustomLayerInterface {
       rec.lat = n.lat;
       [rec.x, rec.y] = this.toLocal(n.lng, n.lat);
       rec.selected = n.selected;
+      rec.size = n.size ?? 1;
+      rec.pickable = n.pickable ?? true;
       rec.model.setStatus(n.color, n.lamp);
       rec.model.setKritis(n.kritis, n.percent);
     }
@@ -513,7 +523,7 @@ export class MapModelLayer implements CustomLayerInterface {
     let best: string | null = null;
     let bestDistance = Infinity;
     for (const [id, rec] of this.nodes) {
-      if (!rec.onScreen) continue;
+      if (!rec.onScreen || !rec.pickable) continue;
       // Jarak titik ke ruas alas–puncak model.
       const dx = rec.topX - rec.baseX;
       const dy = rec.topY - rec.baseY;
@@ -712,8 +722,8 @@ export class MapModelLayer implements CustomLayerInterface {
         // Kompensasi perspektif setengah: marker jauh tidak mengecil sedrastis
         // objek dunia nyata, tapi kedalaman 3D-nya masih terasa.
         const scale = Math.max(
-          (px * rec.grow) / Math.sqrt(ppm * centerPpm),
-          NODE_MIN_METERS,
+          (px * rec.grow * rec.size) / Math.sqrt(ppm * centerPpm),
+          NODE_MIN_METERS * rec.size,
         );
         rec.model.root.position.set(rec.x, rec.y, rec.z);
         rec.model.root.scale.setScalar(scale);

@@ -7,6 +7,7 @@ import type { Camera } from "three";
 import type { SimEngines } from "@/lib/hooks/useIntersectionSim";
 import { buildLayout } from "@/lib/sim/layout";
 import type { IntersectionSimInput, PlanId } from "@/lib/sim/types";
+import { CriticalApproach } from "./scene/CriticalApproach";
 import { RoadGeometry } from "./scene/RoadGeometry";
 import { Scenery } from "./scene/Scenery";
 import { SignalHeads } from "./scene/SignalHeads";
@@ -112,8 +113,8 @@ interface IntersectionSceneProps {
   playing: boolean;
   /** Berubah saat scene perlu digambar ulang dalam keadaan jeda (mis. setelah reset). */
   redrawToken: string;
-  /** Label kecil di pojok canvas (dipakai mode Bandingkan). */
-  label?: string;
+  /** Lajur masuk pendekat ini disorot dengan warna yang diberikan. */
+  highlight?: { approachId: string; color: string };
   /** Canvas dengan tautan yang sama berbagi sudut pandang kamera. */
   cameraLink?: CameraLink;
 }
@@ -124,7 +125,7 @@ export function IntersectionScene({
   engines,
   playing,
   redrawToken,
-  label,
+  highlight,
   cameraLink,
 }: IntersectionSceneProps) {
   const layout = useMemo(() => buildLayout(input.geometry), [input.geometry]);
@@ -148,6 +149,13 @@ export function IntersectionScene({
 
         <Scenery layout={layout} seed={input.seed} />
         <RoadGeometry layout={layout} />
+        {highlight && (
+          <CriticalApproach
+            layout={layout}
+            approachId={highlight.approachId}
+            color={highlight.color}
+          />
+        )}
         <SignalHeads
           layout={layout}
           plan={plan}
@@ -168,11 +176,6 @@ export function IntersectionScene({
         {cameraLink && <LinkCamera link={cameraLink} />}
         <RedrawOnChange token={`${redrawToken}:${planId}`} />
       </Canvas>
-      {label && (
-        <div className="pointer-events-none absolute left-3 top-3 rounded-md border border-[#e5e7eb] bg-white px-2 py-1 text-[11px] font-semibold text-[#111827]">
-          {label}
-        </div>
-      )}
     </div>
   );
 }

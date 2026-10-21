@@ -1,10 +1,11 @@
 'use client'
 import { useMemo, useState, useSyncExternalStore } from 'react'
 import useSWR from 'swr'
-import { Ambulance, Brain } from 'lucide-react'
+import { Ambulance } from 'lucide-react'
 import { DigitalTwinMap } from '@/components/dashboard/DigitalTwinMap'
-import { AiRecommendationPanel } from '@/components/dashboard/AiRecommendationPanel'
+import { AgentActivityChip, AgentActivityPanel } from '@/components/dashboard/AgentActivityPanel'
 import { VanguardPanel } from '@/components/dashboard/VanguardPanel'
+import { useAgents } from '@/lib/hooks/useAgents'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SHOW_PREDICTION_UI } from '@/lib/config/features'
@@ -70,7 +71,8 @@ export default function EphorDashboard() {
   const aiOpen = aiOpenPref ?? !isNarrow
   const vanguardOpen = vanguardOpenPref ?? !isNarrow
 
-  const { data: nodes = [], mutate: mutateNodes } = useSWR<TrafficNode[]>(
+  const agents = useAgents()
+  const { data: nodes = [] } = useSWR<TrafficNode[]>(
     '/api/traffic-nodes', fetcher, { refreshInterval: 5000 }
   )
   const { data: vehicles = [], mutate: mutateVehicles } = useSWR<EmergencyVehicle[]>(
@@ -96,15 +98,6 @@ export default function EphorDashboard() {
     setDialogOpen(true)
   }
 
-  const handleApprove = async (id: string, action: string) => {
-    await fetch(`/api/traffic-nodes/${id}/approve`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action })
-    })
-    mutateNodes()
-  }
-
   const handleTriggerVanguard = async () => {
     await fetch('/api/vanguard/trigger', { method: 'POST' })
     mutateVehicles()
@@ -117,7 +110,6 @@ export default function EphorDashboard() {
 
   // Selama UI Prediction disembunyikan, peta selalu mode Live.
   const mapTab = SHOW_PREDICTION_UI ? activeTab : 'live'
-  const recommendationCount = nodes.filter(n => n.recommendation).length
 
   // Area yang tertutup panel floating; pin yang diklik digeser ke luar area ini.
   const focusPadding = useMemo(() => ({
@@ -154,7 +146,8 @@ export default function EphorDashboard() {
         vehicles={vehicles}
         activeTab={mapTab}
         onNodeSelect={handleNodeSelect}
-        onApprove={handleApprove}
+        agents={agents.snapshot}
+        agentEvents={agents.events}
         topLeftSlot={headerPill}
         focusPadding={focusPadding}
         showHorizonBar
@@ -168,29 +161,14 @@ export default function EphorDashboard() {
       >
         {aiOpen ? (
           <div className="flex min-h-0 w-full flex-1 flex-col">
-            <AiRecommendationPanel
-              nodes={nodes}
-              onApprove={handleApprove}
+            <AgentActivityPanel
+              agents={agents}
               onMinimizeToggle={() => setAiOpenPref(false)}
               className={PANEL_CLASS}
             />
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => setAiOpenPref(true)}
-            aria-expanded={false}
-            aria-label={`Buka panel AI Recommendation, ${recommendationCount} rekomendasi`}
-            className={CHIP_CLASS}
-          >
-            <Brain size={14} className="text-[#8F1610]" />
-            <span className="hidden sm:inline">AI Recommendation</span>
-            {recommendationCount > 0 && (
-              <span className="text-[10px] font-semibold bg-red-500 text-white px-1.5 py-0.5 rounded-full leading-none">
-                {recommendationCount}
-              </span>
-            )}
-          </button>
+          <AgentActivityChip agents={agents} onOpen={() => setAiOpenPref(true)} className={CHIP_CLASS} />
         )}
 
         {vanguardOpen ? (

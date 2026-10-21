@@ -25,6 +25,50 @@ export function projectLevel(currentLevel: number, hoursAhead: number, now: Date
   return Math.max(0, Math.min(100, level));
 }
 
+/**
+ * Skenario demo: menjamin overlay proyeksi menampilkan simpang kuning/merah
+ * terlepas dari jam saat demo direkam. Matikan untuk memakai proyeksi murni.
+ */
+export const DEMO_PROJECTION_SCENARIO = true;
+
+// Porsi simpang [merah, kuning] per jam proyeksi: macet menumpuk hingga
+// puncak di +3 jam lalu berangsur reda.
+const DEMO_SHARES: Record<number, [number, number]> = {
+  1: [0, 0.3],
+  2: [0.15, 0.35],
+  3: [0.4, 0.3],
+  4: [0.3, 0.3],
+  5: [0.1, 0.35],
+  6: [0, 0.2],
+};
+
+// Hash deterministik 0..1 agar simpang yang sama tetap macet di tiap render.
+function hashUnit(key: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 4294967296;
+}
+
+/**
+ * Proyeksi untuk simpang tertentu. Dengan skenario demo, simpang dengan hash
+ * rendah naik lebih dulu ke kuning lalu merah, sehingga kemacetan tampak
+ * menyebar dari titik yang sama di setiap jam.
+ */
+export function projectNodeLevel(id: string, currentLevel: number, hoursAhead: number): number {
+  const base = projectLevel(currentLevel, hoursAhead);
+  const shares = DEMO_PROJECTION_SCENARIO ? DEMO_SHARES[hoursAhead] : undefined;
+  if (!shares) return base;
+  const [red, yellow] = shares;
+  const u = hashUnit(id);
+  const jitter = hashUnit(`${id}:${hoursAhead}`);
+  if (u < red) return Math.max(base, 80 + jitter * 14);
+  if (u < red + yellow) return Math.max(base, 44 + jitter * 14);
+  return base;
+}
+
 /** Tingkat keyakinan proyeksi (%), turun seiring jarak waktu. */
 export function projectionConfidence(hoursAhead: number): number {
   return hoursAhead <= 0 ? 99 : Math.round(92 - (hoursAhead - 1) * 6);

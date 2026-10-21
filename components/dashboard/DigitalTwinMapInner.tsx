@@ -35,6 +35,15 @@ import { VehiclePopupCard } from "./VehiclePopupCard";
 import { detectJunctionFromMap } from "@/components/sim/junctionFromMap";
 import type { DetectedArm } from "@/lib/sim/types";
 import { MapModelLayer, type ModelHit } from "./map3d/MapModelLayer";
+import {
+  AgentPulseAnimator,
+  ensureAgentLayers,
+  recentNoticeLinks,
+  setAgentData,
+  setAgentLayersVisible,
+} from "./map3d/agentLayers";
+import { AGENT_STATUS_COLORS, agentStatusKey } from "./agentTheme";
+import type { AgentEvent, AgentSnapshot, RuntimeSnapshot } from "@/lib/agents/types";
 import { BusPopupCard, BusStopPopupCard } from "./BusPopupCard";
 import {
   BUSES,
@@ -50,7 +59,7 @@ import {
   upcomingArrivals,
 } from "@/lib/simulation/suroboyoBus";
 import {
-  projectLevel,
+  projectNodeLevel,
   projectionConfidence,
 } from "@/lib/simulation/trafficModel";
 
@@ -84,7 +93,9 @@ interface MapInnerProps {
   vehicles: EmergencyVehicle[];
   activeTab: "live" | "prediction" | "simulation";
   onNodeSelect: (node: TrafficNode) => void;
-  onApprove?: (id: string, action: string) => void;
+  /** Status agent simpang (multi-agent Ephor) dan feed event-nya. */
+  agents?: RuntimeSnapshot | null;
+  agentEvents?: AgentEvent[];
   initialOverlays?: Partial<OverlayState>;
   /** Konten halaman di pojok kiri atas peta, di atas kontrol overlay (mis. pill judul). */
   topLeftSlot?: ReactNode;
@@ -195,7 +206,7 @@ interface VehicleRoute {
 // ─── Jaringan ruas kepadatan ───────────────────────────────────────────────
 // Tiap persimpangan dihubungkan ke beberapa persimpangan terdekatnya, jadi
 // ruas kepadatan otomatis mencakup semua node yang ada di data.
-const ROAD_NEIGHBORS = 2;
+const ROAD_NEIGHBORS = 5;
 function buildRoadConnections(nodes: TrafficNode[]): [TrafficNode, TrafficNode][] {
   // Node dengan posisi yang sama dihitung sekali.
   const unique = Array.from(
@@ -217,6 +228,29 @@ function buildRoadConnections(nodes: TrafficNode[]): [TrafficNode, TrafficNode][
       });
   });
   return Array.from(pairs.values());
+}
+
+// Ruas cabang: dari tiap persimpangan, rute jalan ke beberapa arah di
+// sekitarnya, agar kepadatan tampak di jalan-jalan sekitar simpang juga.
+const BRANCH_DIRECTIONS = 8;
+const BRANCH_KM = 3;
+function buildBranchTargets(
+  nodes: TrafficNode[],
+): [TrafficNode, TrafficNode, number][] {
+  const unique = Array.from(
+    new Map(nodes.map((n) => [`${n.lat},${n.lng}`, n])).values(),
+  );
+  return unique.flatMap((node) =>
+    Array.from({ length: BRANCH_DIRECTIONS }, (_, k) => {
+      const angle = (2 * Math.PI * k) / BRANCH_DIRECTIONS + Math.PI / 12;
+      const dLat = (BRANCH_KM / 111) * Math.cos(angle);
+      const dLng =
+        (BRANCH_KM / (111 * Math.cos((node.lat * Math.PI) / 180))) *
+        Math.sin(angle);
+      const target = { ...node, lat: node.lat + dLat, lng: node.lng + dLng };
+      return [node, target, k] as [TrafficNode, TrafficNode, number];
+    }),
+  );
 }
 
 // Geometri rute antar persimpangan. Server OSRM publik membatasi laju
@@ -284,6 +318,10 @@ const PIN_LAMPS = {
   orange: "yellow",
   red: "red",
 } as const;
+// Ruas mengikuti simpang terpadat di ujungnya, agar warna jalan selaras pin.
+function segmentLevel(a: number, b: number): number {
+  return Math.max(a, b) * 0.85 + Math.min(a, b) * 0.15;
+}
 function getLevelClass(level: number): "green" | "yellow" | "orange" | "red" {
   if (level < 40) return "green";
   if (level < 60) return "yellow";
@@ -615,6 +653,7 @@ function nodePopupHTML(
   tab: string,
   forecastTime: number,
   horizon = 0,
+  agent: AgentSnapshot | null = null,
 ): string {
   const conf = FORECAST_CONF[forecastTime] || FORECAST_CONF[0];
   const projecting = tab === "live" && horizon > 0;
@@ -628,16 +667,14 @@ function nodePopupHTML(
         : "Mode Simulasi";
   const isKritis = node.predicted30 >= 85;
   const cls = getLevelClass(node.currentLevel);
-  const secondaryAction =
-    tab === "live" ? (node.recommendation ? "approve" : "detail") : "sim";
+  const secondaryAction = tab === "live" ? "detail" : "sim";
   const secondaryLabel =
-    secondaryAction === "approve"
-      ? "Approve AI"
-      : secondaryAction === "detail"
-        ? "Detail"
-        : tab === "prediction"
-          ? "Analisis Detail"
-          : "Buka Simulasi";
+    secondaryAction === "detail"
+      ? "Detail"
+      : tab === "prediction"
+        ? "Analisis Detail"
+        : "Buka Simulasi";
+  const agentKey = agent ? agentStatusKey(agent) : null;
   return renderToString(
     <NodePopupCard
       node={node}
@@ -657,6 +694,16 @@ function nodePopupHTML(
       }
       secondaryAction={secondaryAction}
       secondaryLabel={secondaryLabel}
+      agent={
+        agent && agentKey
+          ? {
+              statusLabel: agent.statusLabel,
+              statusColor: AGENT_STATUS_COLORS[agentKey],
+              change: agent.activeChange,
+              neighbors: agent.neighbors.length,
+            }
+          : undefined
+      }
     />,
   );
 }
@@ -987,11 +1034,9 @@ interface SimResult {
 function SimulationPanel({
   node,
   onClose,
-  onApprove,
 }: {
   node: TrafficNode;
   onClose: () => void;
-  onApprove?: (id: string, action: string) => void;
 }) {
   const [scenario, setScenario] = useState("existing");
   const [result, setResult] = useState<SimResult | null>(null);
@@ -1142,17 +1187,6 @@ function SimulationPanel({
                   )}
                 </div>
               ))}
-              {scenario !== "existing" && onApprove && (
-                <button
-                  onClick={() => {
-                    onApprove(node.id, scenario);
-                    onClose();
-                  }}
-                  className="w-full py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-xs transition-all mt-1"
-                >
-                  ✓ Terapkan Intervensi Ini
-                </button>
-              )}
             </div>
           )}
         </div>
@@ -1161,13 +1195,19 @@ function SimulationPanel({
   );
 }
 
+/** Agent untuk sebuah pin; pin ganda di lokasi yang sama memakai agent yang sama. */
+function findAgent(agents: RuntimeSnapshot | null, nodeId: string): AgentSnapshot | null {
+  return agents?.agents.find((a) => a.id === nodeId || a.aliasIds.includes(nodeId)) ?? null;
+}
+
 // ─── Main Map Component ────────────────────────────────────────────────────
 export default function DigitalTwinMapInner({
   nodes,
   vehicles,
   activeTab: requestedTab,
   onNodeSelect,
-  onApprove,
+  agents = null,
+  agentEvents,
   initialOverlays,
   topLeftSlot,
   focusPadding,
@@ -1292,7 +1332,8 @@ export default function DigitalTwinMapInner({
 
   const getNodeDisplayLevel = useCallback(
     (node: TrafficNode): number => {
-      if (activeTab === "live") return projectLevel(node.currentLevel, horizon);
+      if (activeTab === "live")
+        return projectNodeLevel(node.id, node.currentLevel, horizon);
       if (activeTab === "prediction")
         return displayLevels[node.id] ?? node.currentLevel;
       if (activeTab === "simulation")
@@ -1300,6 +1341,21 @@ export default function DigitalTwinMapInner({
       return node.currentLevel;
     },
     [activeTab, displayLevels, horizon],
+  );
+
+  // Tingkat kemacetan ruas yang digambar; juga dipakai lampu di ujung cabang.
+  const getSegmentDisplayLevel = useCallback(
+    (s: RoadSegment): number => {
+      if (activeTab === "prediction")
+        return Math.min(100, s.avgLevel * multFor(forecastTime));
+      if (activeTab === "live" && horizon > 0)
+        return segmentLevel(
+          getNodeDisplayLevel(s.fromNode),
+          getNodeDisplayLevel(s.toNode),
+        );
+      return s.avgLevel;
+    },
+    [activeTab, forecastTime, horizon, getNodeDisplayLevel],
   );
 
   const loadRoadSegments = useCallback(async function (
@@ -1328,6 +1384,37 @@ export default function DigitalTwinMapInner({
       ),
     );
     setRoadSegments(segments);
+
+    // Ruas cabang menyusul agar ruas antarsimpang tampil lebih dulu.
+    const branches = await Promise.all(
+      buildBranchTargets(nodeList).map(
+        async ([node, target, k]): Promise<RoadSegment | null> => {
+          const geometry = await fetchSegmentRoute(node, target);
+          // Cabang tanpa rute jalan nyata tidak digambar.
+          if (!geometry) return null;
+          const id = `branch-${node.id}-${k}`;
+          const [endLat, endLng] = geometry[geometry.length - 1];
+          return {
+            id,
+            fromNode: node,
+            // Ujung cabang = simpang kecil berlampu lalu lintas sendiri.
+            toNode: {
+              ...node,
+              id,
+              lat: endLat,
+              lng: endLng,
+              recommendation: null,
+            },
+            geometry,
+            avgLevel: node.currentLevel,
+          };
+        },
+      ),
+    );
+    setRoadSegments([
+      ...segments,
+      ...branches.filter((b): b is RoadSegment => b !== null),
+    ]);
   }, []);
 
   // Load OSRM road segments when nodes change
@@ -1391,7 +1478,7 @@ export default function DigitalTwinMapInner({
     vehicles,
     activeTab,
     onNodeSelect,
-    onApprove,
+    agents,
     forecastTime,
     horizon,
     getNodeDisplayLevel,
@@ -1405,7 +1492,7 @@ export default function DigitalTwinMapInner({
       vehicles,
       activeTab,
       onNodeSelect,
-      onApprove,
+      agents,
       forecastTime,
       horizon,
       getNodeDisplayLevel,
@@ -1418,7 +1505,7 @@ export default function DigitalTwinMapInner({
     vehicles,
     activeTab,
     onNodeSelect,
-    onApprove,
+    agents,
     forecastTime,
     horizon,
     getNodeDisplayLevel,
@@ -1434,22 +1521,16 @@ export default function DigitalTwinMapInner({
       activeTab: tab,
       forecastTime,
       horizon,
-      onApprove,
       onNodeSelect,
+      agents,
     } = latestRef.current;
     const level = latestRef.current.getNodeDisplayLevel(node);
 
     popupRef.current?.remove();
     const el = document.createElement("div");
-    el.innerHTML = nodePopupHTML(node, level, tab, forecastTime, horizon);
+    const agent = findAgent(agents, node.id);
+    el.innerHTML = nodePopupHTML(node, level, tab, forecastTime, horizon, agent);
 
-    el.querySelector('[data-action="approve"]')?.addEventListener(
-      "click",
-      () => {
-        if (onApprove) onApprove(node.id, "approve");
-        popupRef.current?.remove();
-      },
-    );
     el.querySelector('[data-action="detail"]')?.addEventListener(
       "click",
       () => {
@@ -2014,6 +2095,8 @@ export default function DigitalTwinMapInner({
         modelLayer.pick(e.point) ??
         map
           .queryRenderedFeatures(e.point, { layers: ["nodes-layer"] })
+          // Lampu ruas cabang hanya penanda, bukan simpang yang bisa dibuka.
+          .filter((f) => !f.properties.branch)
           .slice(0, 1)
           .map((f) => ({ kind: "node" as const, id: String(f.properties.id) }))[0] ??
         map
@@ -2053,10 +2136,9 @@ export default function DigitalTwinMapInner({
         }
         const node = latestRef.current.nodes.find((n) => n.id === hit?.id);
         if (!node) return;
-        const { activeTab: tab, onApprove, onNodeSelect } = latestRef.current;
+        const { activeTab: tab, onNodeSelect } = latestRef.current;
         if (tab === "live") {
-          if (onApprove && node.recommendation) onApprove(node.id, "approve");
-          else onNodeSelect(node);
+          onNodeSelect(node);
         } else {
           latestRef.current.setSelectedNode((prev) =>
             prev?.id === node.id ? null : node,
@@ -2125,12 +2207,7 @@ export default function DigitalTwinMapInner({
     const mult = multFor(forecastTime);
     if (roadSegments.length > 0) {
       roadSegments.forEach((s) => {
-        const pred =
-          activeTab === "prediction"
-            ? Math.min(100, s.avgLevel * mult)
-            : activeTab === "live"
-              ? projectLevel(s.avgLevel, horizon)
-              : s.avgLevel;
+        const pred = getSegmentDisplayLevel(s);
         features.push(
           lineFeature(
             s.geometry.map(([la, ln]): [number, number] => [ln, la]),
@@ -2140,9 +2217,14 @@ export default function DigitalTwinMapInner({
       });
     } else {
       buildRoadConnections(nodes).forEach(([from, to]) => {
-        const avg = (getNodeDisplayLevel(from) + getNodeDisplayLevel(to)) / 2;
+        const a = getNodeDisplayLevel(from);
+        const b = getNodeDisplayLevel(to);
         const pred =
-          activeTab === "prediction" ? Math.min(100, avg * mult) : avg;
+          activeTab === "prediction"
+            ? Math.min(100, ((a + b) / 2) * mult)
+            : activeTab === "live" && horizon > 0
+              ? segmentLevel(a, b)
+              : (a + b) / 2;
         features.push(
           lineFeature(
             [
@@ -2164,6 +2246,7 @@ export default function DigitalTwinMapInner({
     displayLevels,
     mapReady,
     getNodeDisplayLevel,
+    getSegmentDisplayLevel,
   ]);
 
   // Node markers source (icon pin, image sudah pasti terdaftar sebelum ini jalan)
@@ -2196,6 +2279,25 @@ export default function DigitalTwinMapInner({
       });
     });
 
+    // Lampu lalu lintas di ujung tiap ruas cabang, warnanya mengikuti ruasnya.
+    const branchLights = roadSegments
+      .filter((s) => s.id.startsWith("branch-"))
+      .map((s) => ({ segment: s, level: getSegmentDisplayLevel(s) }));
+    branchLights.forEach(({ segment, level }) =>
+      features.push(
+        pointFeature([segment.toNode.lng, segment.toNode.lat], {
+          id: segment.id,
+          branch: true,
+          level: Math.round(level),
+          percent: Math.round(level),
+          kritis: false,
+          showBadge: false,
+          icon: `pin-${getLevelClass(level)}`,
+          size: 0.55,
+        }),
+      ),
+    );
+
     console.log(
       "[DigitalTwinMap] node features pushed to source:",
       features.length,
@@ -2216,10 +2318,25 @@ export default function DigitalTwinMapInner({
           percent: Math.round(level),
           selected: selectedNode?.id === n.id,
         };
-      }),
+      }).concat(
+        branchLights.map(({ segment, level }) => ({
+          id: segment.id,
+          lng: segment.toNode.lng,
+          lat: segment.toNode.lat,
+          color: PIN_STATUS_COLORS[getLevelClass(level)],
+          lamp: PIN_LAMPS[getLevelClass(level)],
+          kritis: false,
+          percent: Math.round(level),
+          selected: false,
+          size: 0.6,
+          pickable: false,
+        })),
+      ),
     );
   }, [
     nodes,
+    roadSegments,
+    getSegmentDisplayLevel,
     displayLevels,
     selectedNode,
     activeTab,
@@ -2227,6 +2344,52 @@ export default function DigitalTwinMapInner({
     mapReady,
     getNodeDisplayLevel,
   ]);
+
+  // Multi-agent: garis tetangga, cincin status agent di pin, dan denyut emas
+  // yang merambat dari simpang asal ke tetangga sesuai urutan hop.
+  const pulseRef = useRef<AgentPulseAnimator | null>(null);
+  const scenarioRunRef = useRef<string | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    ensureAgentLayers(map, "nodes-layer");
+    const animator = new AgentPulseAnimator(map);
+    pulseRef.current = animator;
+    return () => {
+      animator.dispose();
+      pulseRef.current = null;
+    };
+  }, [mapReady]);
+
+  const agentsVisible = activeTab === "live" && !!agents;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !map.getSource("agent-status")) return;
+    setAgentLayersVisible(map, agentsVisible);
+    if (!agents || !agentsVisible) return;
+    const events = agentEvents ?? [];
+    setAgentData(map, agents, recentNoticeLinks(events, agents.simTimeSec));
+    pulseRef.current?.ingest(events, agents);
+
+    // Skenario demo baru: arahkan kamera ke koridor supaya rambatan notice
+    // (termasuk tetangga hop 2) terlihat.
+    if (agents.scenario && scenarioRunRef.current !== agents.runId) {
+      scenarioRunRef.current = agents.runId;
+      const ids = new Set(agents.scenario.corridor);
+      const pts = agents.agents.filter((a) => ids.has(a.id));
+      if (pts.length > 0) {
+        map.easeTo({
+          center: [
+            pts.reduce((sum, a) => sum + a.lng, 0) / pts.length,
+            pts.reduce((sum, a) => sum + a.lat, 0) / pts.length,
+          ],
+          zoom: 14.3,
+          padding: { ...DEFAULT_FOCUS_PADDING, ...focusPaddingRef.current, top: 80 },
+          duration: 1200,
+        });
+      }
+    }
+  }, [agents, agentEvents, agentsVisible, mapReady]);
 
   // Ambulans 3D + garis rutenya. Layer 3D menghaluskan progres antar polling,
   // jadi garis "sudah dilewati" dan popup mengikuti posisi model, bukan angka
@@ -2660,7 +2823,6 @@ export default function DigitalTwinMapInner({
             <SimulationPanel
               node={selectedNode}
               onClose={() => setSelectedNode(null)}
-              onApprove={onApprove}
             />
           )}
         </div>
@@ -2683,6 +2845,7 @@ export default function DigitalTwinMapInner({
         <IntersectionSimPanel
           node={sim3dNode}
           arms={sim3dArms}
+          agent={findAgent(agents, sim3dNode.id)}
           onClose={() => setSim3dNode(null)}
         />
       )}

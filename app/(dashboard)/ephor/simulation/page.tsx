@@ -97,8 +97,8 @@ export default function SimulationPage() {
 
       <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
         <Button variant="outline" className="font-bold">Reset Default</Button>
-        <Button className="bg-[#111827] text-white hover:bg-slate-800 font-bold" onClick={() => alert('Parameter simulasi berhasil diterapkan ke sistem core.')}>
-          <Save size={16} className="mr-2" /> Terapkan ke Simulasi
+        <Button className="bg-[#111827] text-white hover:bg-slate-800 font-bold" onClick={() => alert('Parameter simulasi disimpan. Simulasi, bukan kontrol langsung sinyal lapangan.')}>
+          <Save size={16} className="mr-2" /> Simpan Parameter Simulasi
         </Button>
       </div>
     </div>

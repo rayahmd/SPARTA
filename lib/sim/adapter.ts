@@ -204,27 +204,64 @@ function redistributeGreens(greens: number[], weights: number[]): number[] {
   return result;
 }
 
-function buildAiPlan(
+/**
+ * Rencana hijau green-delta dengan panjang siklus tetap: `delta` detik
+ * dipindahkan ke/dari fase `target`, diimbangi fase lain. Detik yang diambil
+ * dibagi sebanding sisa hijau di atas minimum; detik yang dilepas diberikan ke
+ * fase `receiver` (pendekat terpadat).
+ */
+function shiftGreens(
+  greens: number[],
+  target: number,
+  delta: number,
+  receiver: number,
+): number[] {
+  const result = greens.slice();
+  if (delta < 0) {
+    const freed = greens[target] - clamp(greens[target] + delta, MIN_GREEN_SEC, MAX_GREEN_SEC);
+    const moved = Math.min(freed, MAX_GREEN_SEC - greens[receiver]);
+    result[target] -= moved;
+    result[receiver] += moved;
+    return result;
+  }
+  const others = greens.map((_, i) => i).filter((i) => i !== target);
+  const slack = others.reduce((sum, i) => sum + greens[i] - MIN_GREEN_SEC, 0);
+  let take = Math.min(clamp(greens[target] + delta, MIN_GREEN_SEC, MAX_GREEN_SEC) - greens[target], slack);
+  result[target] += take;
+  // Pembagian bulat sebanding sisa; sisanya diambil satu per satu dari fase terlonggar.
+  for (const i of others) {
+    const share = Math.floor((take * (greens[i] - MIN_GREEN_SEC)) / Math.max(1, slack));
+    result[i] -= share;
+  }
+  take -= others.reduce((sum, i) => sum + greens[i] - result[i], 0);
+  const bySlack = others.slice().sort((a, b) => result[b] - result[a] || a - b);
+  for (let k = 0; take > 0 && k < 1000; k++) {
+    const i = bySlack[k % bySlack.length];
+    if (result[i] > MIN_GREEN_SEC) {
+      result[i]--;
+      take--;
+    }
+  }
+  return result;
+}
+
+/** Hijau rencana AI, atau null bila rekomendasi tidak bisa disimulasikan. */
+function aiGreensFor(
   recommendation: ParsedRecommendation,
-  arms: ArmSeed[],
   currentGreens: number[],
-  approaches: ApproachSpec[],
-  criticalIndex: number,
-): SignalPlan | null {
+  loads: number[],
+  target: number,
+  busiest: number,
+): number[] | null {
   if (recommendation.kind === "green-delta") {
-    const greens = currentGreens.slice();
-    greens[criticalIndex] = clamp(
-      greens[criticalIndex] + recommendation.deltaSec,
-      MIN_GREEN_SEC,
-      MAX_GREEN_SEC,
-    );
-    return makePlan("ai", arms, greens);
+    return shiftGreens(currentGreens, target, recommendation.deltaSec, busiest);
   }
   if (recommendation.kind === "adaptive") {
-    const weights = approaches.map(
-      (a) => a.demandVph / (SAT_FLOW_VPH_PER_LANE * a.lanes),
+    // Hijau sebanding arus yang harus dilayani (beban × hijau sekarang).
+    return redistributeGreens(
+      currentGreens,
+      loads.map((load, i) => load * currentGreens[i]),
     );
-    return makePlan("ai", arms, redistributeGreens(currentGreens, weights));
   }
   return null;
 }
@@ -285,8 +322,8 @@ export function buildSimInput(
 
   // ── Data demo (urutan pemanggilan rng tetap supaya deterministik) ──
   const majorNS = rng() < 0.5;
-  const greenMajor = 35 + Math.floor(rng() * 11); // 35..45
-  const greenMinor = 22 + Math.floor(rng() * 9); // 22..30
+  const greenMajor = 30 + Math.floor(rng() * 9); // 30..38
+  const greenMinor = 15 + Math.floor(rng() * 6); // 15..20
   const isMajor = detected
     ? majorArms(detected)
     : arms.map((arm) => (arm.id === "N" || arm.id === "S") === majorNS);
@@ -299,35 +336,69 @@ export function buildSimInput(
   // Derajat kejenuhan dari tingkat kemacetan saat ini.
   const saturation = clamp(0.3 + (0.75 * currentLevel) / 100, 0.3, 1.05);
 
-  let criticalIndex = 0;
-  let criticalRatio = -Infinity;
-  const approaches: ApproachSpec[] = arms.map((arm, i) => {
+  const draws = arms.map((arm, i) => {
     const lanes = detected
       ? (LANES_BY_CLASS[arm.roadClass ?? ""] ?? 2)
       : isMajor[i]
         ? 3
         : 2;
     const weight = 0.85 + rng() * 0.3;
-    const capacity =
-      (SAT_FLOW_VPH_PER_LANE * lanes * currentGreens[i]) / current.cycleSec;
-    const demandVph = Math.round(saturation * capacity * weight);
-    const ratio = demandVph / capacity;
-    if (ratio > criticalRatio) {
-      criticalRatio = ratio;
-      criticalIndex = i;
-    }
     const left = round2(0.2 + (rng() - 0.5) * 0.1);
     const right = round2(0.2 + (rng() - 0.5) * 0.1);
+    return { lanes, weight, left, right };
+  });
+
+  // Skenario demo: pendekat terpadat adalah lengan dengan hijau terpendek
+  // (jalan minor yang volumenya sedang naik), jadi pembagian hijau eksisting
+  // jelas tidak cocok dan efek rekomendasi AI tampak nyata di simulasi.
+  const busiest = currentGreens.reduce(
+    (best, g, i) =>
+      g < currentGreens[best] ||
+      (g === currentGreens[best] && draws[i].weight > draws[best].weight)
+        ? i
+        : best,
+    0,
+  );
+  const overserved = currentGreens.reduce(
+    (best, g, i) => (i !== busiest && (best < 0 || g > currentGreens[best]) ? i : best),
+    -1,
+  );
+  const delta =
+    recommendation.kind === "green-delta" ? recommendation.deltaSec : 0;
+  // Hijau negatif diterapkan pada pendekat yang kelebihan hijau.
+  const criticalIndex = delta < 0 && overserved >= 0 ? overserved : busiest;
+  const hasAi =
+    recommendation.kind === "green-delta" || recommendation.kind === "adaptive";
+
+  // Beban (volume ÷ kapasitas rencana eksisting) per lengan.
+  const otherCap = 0.35 + (0.25 * currentLevel) / 100;
+  const loads = draws.map((d, i) => {
+    const base = saturation * d.weight;
+    if (!hasAi) return base;
+    if (i !== busiest) return Math.min(base, otherCap * d.weight);
+    // Pendekat terpadat lewat jenuh di rencana eksisting; di rencana AI
+    // bebannya turun ke ~0,8–0,9 bila hijaunya cukup.
+    const aiLoad = 0.78 + (0.1 * currentLevel) / 100;
+    const probe = aiGreensFor(recommendation, currentGreens, [], criticalIndex, busiest);
+    const gain = probe ? probe[busiest] / currentGreens[busiest] : 1;
+    return Math.max(1.25 + (0.1 * currentLevel) / 100, aiLoad * gain);
+  });
+
+  const approaches: ApproachSpec[] = arms.map((arm, i) => {
+    const { lanes, left, right } = draws[i];
+    const capacity =
+      (SAT_FLOW_VPH_PER_LANE * lanes * currentGreens[i]) / current.cycleSec;
     return {
       id: arm.id,
       label: arm.label,
       bearingDeg: arm.bearingDeg,
       roadClass: arm.roadClass,
       lanes,
-      demandVph,
+      demandVph: Math.round(loads[i] * capacity),
       turnRatio: turnRatioFor(exits[i], left, right),
     };
   });
+  const aiGreens = aiGreensFor(recommendation, currentGreens, loads, criticalIndex, busiest);
 
   const mocked = [
     "Durasi fase eksisting",
@@ -360,7 +431,7 @@ export function buildSimInput(
     vehicleMix: { motor: 0.6, mobil: 0.32, bus: 0.03, truk: 0.05 },
     plans: {
       current,
-      ai: buildAiPlan(recommendation, arms, currentGreens, approaches, criticalIndex),
+      ai: aiGreens ? makePlan("ai", arms, aiGreens) : null,
     },
     criticalApproach: arms[criticalIndex].id,
     seed,

@@ -136,10 +136,10 @@ export default function SettingsPage() {
 
           <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-slate-100">
             <div>
-              <p className="font-bold text-[#111827] text-sm">Mode Auto-Approve AI</p>
-              <p className="text-xs text-slate-500 mt-0.5">Jika aktif, AI akan langsung mengeksekusi rekomendasi tanpa persetujuan operator.</p>
+              <p className="font-bold text-[#111827] text-sm">Mode Otomatis Multi-Agent</p>
+              <p className="text-xs text-slate-500 mt-0.5">Agent simpang memutuskan dan menerapkan rencana sinyal sendiri setelah lolos guardrail dan twin gate. Operator memantau dan boleh override (jeda agent atau paksa siklus default) dari panel Aktivitas Agent.</p>
             </div>
-            <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50 font-bold">DINONAKTIFKAN</Badge>
+            <Badge variant="outline" className="text-green-700 border-green-200 bg-green-50 font-bold">AKTIF</Badge>
           </div>
         </CardContent>
       </Card>

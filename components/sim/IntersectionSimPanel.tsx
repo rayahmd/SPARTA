@@ -5,20 +5,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIntersectionSim } from "@/lib/hooks/useIntersectionSim";
+import { shortName } from "@/lib/agents/format";
+import type { AgentSnapshot, ReplyAction } from "@/lib/agents/types";
 import { VEHICLE_TYPES } from "@/lib/sim/idm";
 import type {
   DetectedArm,
   IntersectionSimInput,
   PlanId,
+  SimMetrics,
   TrafficNodeSnapshot,
   VehicleType,
 } from "@/lib/sim/types";
 import { cn } from "@/lib/utils";
 import { IntersectionScene, createCameraLink } from "./IntersectionScene";
-import { MetricCards } from "./MetricCards";
+import { DeltaBadge, MetricCards } from "./MetricCards";
 import { PhaseDiagram } from "./PhaseDiagram";
 import { SimControls } from "./SimControls";
-import { VEHICLE_LABELS } from "./simTheme";
+import { SIGNAL_COLORS, VEHICLE_LABELS, formatNumber } from "./simTheme";
 
 export type SimTab = "current" | "ai" | "compare";
 
@@ -26,6 +29,8 @@ interface IntersectionSimPanelProps {
   node: TrafficNodeSnapshot;
   /** Lengan simpang dari data jalan di peta; null → bentuk default (perempatan). */
   arms?: DetectedArm[] | null;
+  /** Agent simpang ini; bila ada, tab "Rekomendasi AI" = rencana yang diterapkan otomatis agent. */
+  agent?: AgentSnapshot | null;
   onClose: () => void;
 }
 
@@ -36,8 +41,11 @@ const TAB_LABELS: Record<SimTab, string> = {
 };
 
 /** Alasan rencana AI tidak tersedia, atau null bila tersedia. */
-function aiUnavailableReason(input: IntersectionSimInput): string | null {
+function aiUnavailableReason(input: IntersectionSimInput, agent: boolean): string | null {
   if (input.plans.ai) return null;
+  if (agent) {
+    return "Agent simpang ini belum mengubah rencana; siklus default berjalan. Hanya kondisi saat ini yang bisa disimulasikan.";
+  }
   if (input.recommendation.kind === "unparsed") {
     return `Teks rekomendasi tidak memuat durasi lampu, jadi tidak bisa disimulasikan: “${input.recommendation.raw}”.`;
   }
@@ -61,8 +69,12 @@ function recommendationNote(input: IntersectionSimInput): string | null {
         : recommendation.deltaSec;
     const sign = applied > 0 ? "+" : "−";
     const clamped =
-      applied !== recommendation.deltaSec ? " (dibatasi 10–90 dtk)" : "";
-    return `Diterapkan sebagai ${sign}${Math.abs(applied)} dtk hijau${clamped} pada pendekat ${approach}, pendekat terpadat. Teks rekomendasi tidak menyebut pendekat, jadi pilihan ini asumsi demo.`;
+      applied !== recommendation.deltaSec ? " (dibatasi hijau 10–90 dtk)" : "";
+    const target =
+      applied > 0
+        ? `pendekat ${approach}, pendekat terpadat; detiknya diambil dari fase lain`
+        : `pendekat ${approach}, yang kelebihan hijau; detiknya diberikan ke pendekat terpadat`;
+    return `Diterapkan sebagai ${sign}${Math.abs(applied)} dtk hijau${clamped} pada ${target}, panjang siklus tetap. Teks rekomendasi tidak menyebut pendekat, jadi pilihan ini asumsi demo.`;
   }
   if (recommendation.kind === "adaptive") {
     return "Diterapkan sebagai pembagian ulang waktu hijau sebanding volume tiap pendekat, panjang siklus tetap. Ini asumsi demo.";
@@ -78,9 +90,12 @@ const JUNCTION_NAMES: Record<number, string> = {
 };
 
 /** Dari mana bentuk simpang di scene berasal. */
-function junctionNote(input: IntersectionSimInput): string {
+function junctionNote(input: IntersectionSimInput, agent: boolean): string {
   const { source, armCount } = input.meta.junction;
   const shape = JUNCTION_NAMES[armCount] ?? `${armCount} lengan`;
+  if (agent) {
+    return `Bentuk simpang: ${shape} model twin agent, sama dengan yang dipakai twin gate saat memutuskan. Volume dari prediksi Supervisor.`;
+  }
   return source === "osm"
     ? `Bentuk simpang: ${shape}, dibaca dari data jalan OpenStreetMap di sekitar pin. Jumlah lajur diperkirakan dari kelas jalan.`
     : `Bentuk simpang: ${shape} default. Data jalan di sekitar pin tidak membentuk simpang yang terbaca, jadi bentuk ini belum tentu sesuai lapangan.`;
@@ -119,6 +134,120 @@ function LoadError({ message, onRetry }: { message: string; onRetry: () => void 
         </Button>
       </div>
     </div>
+  );
+}
+
+/** Warna penanda tiap rencana di scene: merah = eksisting, hijau = AI. */
+const PLAN_TONES: Record<PlanId, string> = {
+  current: SIGNAL_COLORS.red,
+  ai: SIGNAL_COLORS.green,
+};
+
+/** Pendekat yang paling terdampak rencana AI: penerima hijau tambahan terbesar. */
+function focusApproach(input: IntersectionSimInput): string {
+  const { plans, criticalApproach } = input;
+  if (!plans.ai) return criticalApproach;
+  let best = criticalApproach;
+  let bestGain = -Infinity;
+  plans.current.phases.forEach((phase, i) => {
+    const gain = plans.ai!.phases[i].greenSec - phase.greenSec;
+    if (gain > bestGain && phase.approaches[0]) {
+      bestGain = gain;
+      best = phase.approaches[0];
+    }
+  });
+  return best;
+}
+
+interface OverlayRow {
+  label: string;
+  value: number;
+  base: number;
+  unit: string;
+  decimals: 0 | 1;
+}
+
+/** Kartu ringkas di atas canvas mode Bandingkan. */
+function PlanOverlay({
+  planId,
+  metrics,
+  baseline,
+  focusId,
+  focusLabel,
+}: {
+  planId: PlanId;
+  metrics: SimMetrics | null;
+  baseline?: SimMetrics | null;
+  focusId: string;
+  focusLabel: string;
+}) {
+  const tone = PLAN_TONES[planId];
+  const focusQueue = metrics?.perApproach[focusId]?.queueNow ?? 0;
+  const rows: OverlayRow[] = [
+    {
+      label: "Antrean kini",
+      value: metrics?.queueNow ?? 0,
+      base: baseline?.queueNow ?? 0,
+      unit: "kend",
+      decimals: 0,
+    },
+    {
+      label: "Tundaan rata-rata",
+      value: metrics?.delayAvgSec ?? 0,
+      base: baseline?.delayAvgSec ?? 0,
+      unit: "dtk",
+      decimals: 1,
+    },
+  ];
+  return (
+    <>
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-1"
+        style={{ backgroundColor: tone }}
+        aria-hidden="true"
+      />
+      <div className="pointer-events-none absolute left-3 top-3 w-44 rounded-lg border border-[#e5e7eb] bg-white/95 p-2.5 shadow-sm">
+        <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#111827]">
+          <span
+            className="size-2 rounded-full"
+            style={{ backgroundColor: tone }}
+            aria-hidden="true"
+          />
+          {TAB_LABELS[planId]}
+        </p>
+        <dl className="mt-1.5 space-y-1">
+          {rows.map((row) => (
+            <div key={row.label} className="flex items-baseline justify-between gap-2">
+              <dt className="text-[10px] text-[#6B7280]">{row.label}</dt>
+              <dd className="flex items-baseline gap-1 tabular-nums">
+                <span className="text-sm font-semibold text-[#111827]">
+                  {formatNumber(row.value, row.decimals)}
+                </span>
+                <span className="text-[10px] text-[#6B7280]">{row.unit}</span>
+              </dd>
+            </div>
+          ))}
+        </dl>
+        {baseline && metrics && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {rows.map((row) => (
+              <DeltaBadge
+                key={row.label}
+                base={row.base}
+                value={row.value}
+                lowerIsBetter
+              />
+            ))}
+          </div>
+        )}
+        <p className="mt-1.5 border-t border-[#e5e7eb] pt-1.5 text-[10px] leading-snug text-[#374151]">
+          <span className="font-semibold" style={{ color: tone }}>
+            Pendekat {focusLabel}
+          </span>{" "}
+          (disorot): {focusQueue} kend antre
+        </p>
+      </div>
+    </>
   );
 }
 
@@ -205,9 +334,78 @@ function VehicleLegend() {
   );
 }
 
+const REPLY_TONES: Record<ReplyAction, string> = {
+  accept: "bg-green-50 text-green-700 ring-green-200",
+  adjust: "bg-amber-50 text-amber-800 ring-amber-200",
+  reject: "bg-slate-100 text-slate-600 ring-slate-200",
+};
+
+/** Rencana yang diputuskan agent (bukan usulan): ringkasan, alasan, skor twin. */
+function AgentPlanNote({ agent }: { agent: AgentSnapshot }) {
+  const change = agent.activeChange;
+  if (!change) return null;
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-[#8F1610]">
+        Rencana agent · diterapkan otomatis
+      </p>
+      <p className="mt-1 text-xs font-semibold text-[#111827]">{change.summary}</p>
+      <p className="mt-1 text-[11px] leading-snug text-[#374151]">
+        {change.origin === "neighbor" ? `Menyesuaikan perubahan ${change.originName}. ` : ""}
+        {change.reason}
+      </p>
+      {change.twin && (
+        <p className="mt-1 text-[11px] tabular-nums text-[#374151]">
+          Skor twin {formatNumber(change.twin.currentScore, 1)} → {formatNumber(change.twin.candidateScore, 1)} (
+          {change.twin.improvementPct > 0 ? "−" : "+"}
+          {formatNumber(Math.abs(change.twin.improvementPct), 1)}%), lolos ambang twin gate.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Tetangga yang ikut menyesuaikan perubahan simpang ini (balasan notice). */
+function NeighborReplies({ agent }: { agent: AgentSnapshot }) {
+  const change = agent.activeChange;
+  if (!change) return null;
+  if (change.origin === "neighbor") {
+    return (
+      <section aria-label="Koordinasi tetangga">
+        <h3 className="text-xs font-semibold text-[#111827]">Koordinasi tetangga</h3>
+        <p className="mt-1 text-[11px] leading-snug text-[#374151]">
+          Simpang ini menyesuaikan notice dari {change.originName}; tidak ada persetujuan operator di jalur keputusan.
+        </p>
+      </section>
+    );
+  }
+  return (
+    <section aria-label="Tetangga yang ikut menyesuaikan">
+      <h3 className="text-xs font-semibold text-[#111827]">Tetangga yang ikut menyesuaikan</h3>
+      {change.replies.length === 0 ? (
+        <p className="mt-1 text-[11px] text-[#6B7280]">Menunggu balasan notice dari tetangga.</p>
+      ) : (
+        <ul className="mt-1.5 space-y-1.5">
+          {change.replies.map((r) => (
+            <li key={`${r.agentId}-${r.hop}`} className="text-[11px] leading-snug text-[#374151]">
+              <span className="font-semibold text-[#111827]">{shortName(r.agentName)}</span>{" "}
+              <span className={cn("rounded px-1 py-px text-[10px] font-bold uppercase ring-1", REPLY_TONES[r.action])}>
+                {r.action}
+              </span>
+              {r.detail ? ` ${r.detail}` : ""}
+              <span className="block text-[#6B7280]">{r.reason}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export default function IntersectionSimPanel({
   node,
   arms,
+  agent = null,
   onClose,
 }: IntersectionSimPanelProps) {
   const titleId = useId();
@@ -216,7 +414,9 @@ export default function IntersectionSimPanel({
   const [webgl] = useState(detectWebGL);
   // Di mode Bandingkan kedua canvas berbagi sudut pandang kamera.
   const [cameraLink] = useState(createCameraLink);
-  const sim = useIntersectionSim(node, arms);
+  // Agent dibekukan saat panel dibuka, sama seperti snapshot simpang.
+  const [agentAtOpen] = useState(agent);
+  const sim = useIntersectionSim(node, arms, { agent: !!agentAtOpen });
   const { input, frame } = sim;
 
   // Pindahkan fokus ke panel saat dibuka dan kembalikan saat ditutup.
@@ -235,8 +435,11 @@ export default function IntersectionSimPanel({
   const tab: SimTab = aiPlan ? (selectedTab ?? "ai") : "current";
   const scenePlans: PlanId[] =
     tab === "compare" ? ["current", "ai"] : [tab === "ai" ? "ai" : "current"];
-  const unavailable = input ? aiUnavailableReason(input) : null;
-  const note = input ? recommendationNote(input) : null;
+  const unavailable = input ? aiUnavailableReason(input, !!agentAtOpen) : null;
+  const note = input && !agentAtOpen ? recommendationNote(input) : null;
+  const focusId = input ? focusApproach(input) : null;
+  const focusLabel =
+    input?.geometry.approaches.find((a) => a.id === focusId)?.label ?? "";
 
   return (
     <div
@@ -350,9 +553,22 @@ export default function IntersectionSimPanel({
                       engines={sim.engines}
                       playing={sim.playing}
                       redrawToken={String(sim.resetCount)}
-                      label={tab === "compare" ? TAB_LABELS[planId] : undefined}
+                      highlight={
+                        aiPlan && focusId
+                          ? { approachId: focusId, color: PLAN_TONES[planId] }
+                          : undefined
+                      }
                       cameraLink={cameraLink}
                     />
+                    {tab === "compare" && focusId && (
+                      <PlanOverlay
+                        planId={planId}
+                        metrics={planId === "ai" ? frame.ai : frame.current}
+                        baseline={planId === "ai" ? frame.current : undefined}
+                        focusId={focusId}
+                        focusLabel={focusLabel}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
@@ -362,10 +578,12 @@ export default function IntersectionSimPanel({
           </div>
 
           <aside className="max-h-[45%] shrink-0 space-y-4 overflow-y-auto border-t border-[#e5e7eb] p-4 @3xl:max-h-none @3xl:w-80 @3xl:border-l @3xl:border-t-0">
-            {aiPlan && input.recommendation.raw && (
+            {aiPlan && agentAtOpen && <AgentPlanNote agent={agentAtOpen} />}
+            {tab === "compare" && agentAtOpen && <NeighborReplies agent={agentAtOpen} />}
+            {aiPlan && !agentAtOpen && input.recommendation.raw && (
               <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-2.5">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-yellow-700">
-                  Rekomendasi AI
+                  Rencana AI (simulasi)
                 </p>
                 <p className="mt-1 text-xs font-medium text-yellow-800">
                   {input.recommendation.raw}
@@ -407,7 +625,7 @@ export default function IntersectionSimPanel({
             )}
 
             <p className="text-[11px] leading-snug text-[#6B7280]">
-              {junctionNote(input)}
+              {junctionNote(input, !!agentAtOpen)}
             </p>
 
             <VehicleLegend />

@@ -1,3 +1,5 @@
+// Skrip Node (CommonJS) untuk cek cepat jumlah simpang di database.
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 prisma.trafficNode.count()

@@ -80,8 +80,8 @@ describe("buildSimInput", () => {
     expect(input.meta.junction).toEqual({ source: "default", armCount: 4 });
     expect(current.cycleSec).toBe(sumCycleSec(current.phases));
     for (const phase of current.phases) {
-      expect(phase.greenSec).toBeGreaterThanOrEqual(22);
-      expect(phase.greenSec).toBeLessThanOrEqual(45);
+      expect(phase.greenSec).toBeGreaterThanOrEqual(15);
+      expect(phase.greenSec).toBeLessThanOrEqual(38);
       expect(phase.yellowSec).toBe(3);
       expect(phase.allRedSec).toBe(2);
     }
@@ -89,25 +89,48 @@ describe("buildSimInput", () => {
     expect(input.meta.mocked.length).toBeGreaterThan(0);
   });
 
-  test("green-delta hanya mengubah fase pendekat kritis dan siklus ikut berubah", () => {
+  test("green-delta memindahkan hijau ke pendekat kritis dengan siklus tetap", () => {
     const input = buildSimInput(snapshot(), OPTS);
     const { current, ai } = input.plans;
     expect(ai).not.toBeNull();
     const critical = indexOfApproach(input, input.criticalApproach);
+    expect(ai!.phases[critical].greenSec).toBe(current.phases[critical].greenSec + 15);
     current.phases.forEach((phase, i) => {
-      const expected = i === critical ? phase.greenSec + 15 : phase.greenSec;
-      expect(ai!.phases[i].greenSec).toBe(expected);
+      if (i === critical) return;
+      expect(ai!.phases[i].greenSec).toBeLessThanOrEqual(phase.greenSec);
+      expect(ai!.phases[i].greenSec).toBeGreaterThanOrEqual(MIN_GREEN_SEC);
     });
-    expect(ai!.cycleSec).toBe(current.cycleSec + 15);
+    expect(ai!.cycleSec).toBe(current.cycleSec);
     expect(ai!.cycleSec).toBe(sumCycleSec(ai!.phases));
   });
 
-  test("green-delta dijepit ke [10, 90] detik", () => {
+  test("rencana AI mengurangi antrean pendekat kritis secara nyata", () => {
+    const input = buildSimInput(snapshot({ currentLevel: 15 }), OPTS);
+    const current = createSim(input, "current");
+    const ai = createSim(input, "ai");
+    for (let i = 0; i < Math.round(900 / SIM_DT); i++) {
+      stepSim(current, SIM_DT);
+      stepSim(ai, SIM_DT);
+    }
+    expect(ai.queueSum).toBeLessThan(current.queueSum * 0.75);
+  });
+
+  test("green-delta dijepit ke [10, 90] detik dan siklus tetap", () => {
     const up = buildSimInput(snapshot({ recommendation: "+200 detik" }), OPTS);
     const down = buildSimInput(snapshot({ recommendation: "-99 detik" }), OPTS);
     const iUp = indexOfApproach(up, up.criticalApproach);
     const iDown = indexOfApproach(down, down.criticalApproach);
-    expect(up.plans.ai!.phases[iUp].greenSec).toBe(MAX_GREEN_SEC);
+    for (const input of [up, down]) {
+      expect(input.plans.ai!.cycleSec).toBe(input.plans.current.cycleSec);
+      for (const phase of input.plans.ai!.phases) {
+        expect(phase.greenSec).toBeGreaterThanOrEqual(MIN_GREEN_SEC);
+        expect(phase.greenSec).toBeLessThanOrEqual(MAX_GREEN_SEC);
+      }
+    }
+    // +200 dibatasi sisa hijau fase lain; semuanya turun ke minimum.
+    up.plans.ai!.phases.forEach((phase, i) => {
+      if (i !== iUp) expect(phase.greenSec).toBe(MIN_GREEN_SEC);
+    });
     expect(down.plans.ai!.phases[iDown].greenSec).toBe(MIN_GREEN_SEC);
   });
 
